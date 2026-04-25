@@ -1671,10 +1671,11 @@ a.ev-title:hover { text-decoration: underline; }
 .filter-btn {
   cursor: pointer;
   border: none;
-  transition: filter .15s;
+  transition: background .15s, color .15s;
 }
 .filter-btn.off {
-  filter: grayscale(100%) opacity(55%);
+  background: #aaa !important;
+  color: #fff !important;
 }
 .filter-row {
   display: flex;
