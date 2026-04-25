@@ -1671,11 +1671,10 @@ a.ev-title:hover { text-decoration: underline; }
 .filter-btn {
   cursor: pointer;
   border: none;
-  transition: opacity .15s;
+  transition: filter .15s;
 }
 .filter-btn.off {
-  opacity: 0.3;
-  text-decoration: line-through;
+  filter: grayscale(100%) opacity(55%);
 }
 .filter-row {
   display: flex;
@@ -1714,12 +1713,13 @@ a.ev-title:hover { text-decoration: underline; }
 }
 .ctrl-btn {
   font-size: .75rem;
+  font-weight: 600;
   background: none;
-  border: 1px solid #ccc;
+  border: 1px solid #aaa;
   border-radius: 20px;
   padding: 3px 10px;
   cursor: pointer;
-  color: #555;
+  color: #333;
 }
 .ctrl-btn:hover { background: #f0f0f0; }
 .lib-toggle-btn {
@@ -1767,7 +1767,7 @@ ${GA_MEASUREMENT_ID !== 'G-XXXXXXXXXX' ? `<script async src="https://www.googlet
     Updated: ${now} &nbsp;·&nbsp; ${total} upcoming event${total !== 1 ? 's' : ''}
   </p>
   <p class="meta" style="margin-top:-8px;margin-bottom:10px;">
-    Use <strong>Kids</strong> / <strong>Adults</strong> to filter by audience. Toggle libraries on or off using the colored buttons below.
+    Use <strong>Kids</strong> / <strong>Adults</strong> to filter by audience. Toggle libraries on or off using the buttons below.
   </p>
   <div class="filter-row">
     <span class="filter-label">Events:</span>
