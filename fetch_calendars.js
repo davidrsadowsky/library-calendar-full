@@ -786,7 +786,9 @@ async function scrapeTribeEvents(baseUrl, libraryKey, kidsSlugs, adultSlugs) {
       }
       if (!eventDate || isNaN(eventDate.getTime()) || eventDate < cutoff) return;
 
-      const timeStr = $el.find('.tribe-events-schedule, .tribe-events-divider, .tribe-event-date-start').first().text().trim().replace(/\s+/g, ' ');
+      let timeStr = $el.find('.tribe-events-schedule, .tribe-events-divider, .tribe-event-date-start').first().text().trim().replace(/\s+/g, ' ');
+      // Strip date prefix: "April 28 @ 3:45 pm - 4:45 pm" → "3:45 pm - 4:45 pm"
+      if (timeStr.includes('@')) timeStr = timeStr.split('@').slice(1).join('@').trim();
 
       events.push({ date: new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate()), time: timeStr, title, url: href, library: libraryKey, category });
     });
@@ -1667,6 +1669,7 @@ a.ev-title:hover { text-decoration: underline; }
 }
 .ctrl-btn:hover { background: #f0f0f0; }
 .lib-toggle-btn {
+  display: none; /* desktop: toggle not needed, legend always visible */
   font-size: .75rem;
   background: none;
   border: 1px solid #aaa;
@@ -1678,7 +1681,6 @@ a.ev-title:hover { text-decoration: underline; }
 }
 .lib-toggle-btn:hover { background: #f0f0f0; }
 .legend { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-.legend.collapsed { display: none; }
 .event.hidden { display: none; }
 .day.hidden { display: none; }
 @media (max-width: 640px) {
@@ -1686,17 +1688,17 @@ a.ev-title:hover { text-decoration: underline; }
   h1 { font-size: 1.2rem; }
   .meta { font-size: .75rem; margin-bottom: 6px; }
   .cat-btn { padding: 5px 14px; min-height: 36px; }
-  .filter-btn { padding: 5px 10px; min-height: 36px; }
   .ctrl-btn { padding: 4px 10px; min-height: 32px; }
-  .lib-toggle-btn { padding: 4px 12px; min-height: 32px; }
+  .lib-toggle-btn { display: inline-block; padding: 4px 12px; min-height: 32px; }
   main { margin: 10px auto; padding: 0 10px 32px; }
   .day { margin-bottom: 10px; border-radius: 8px; }
   .day-hdr { padding: 8px 12px; font-size: .88rem; }
   .event { padding: 8px 12px; gap: 6px; }
   .ev-time { min-width: 0; width: 100%; }
   .badge { font-size: .65rem; }
-  .legend { display: none; }
-  .legend.open { display: flex; }
+  .filter-btn { font-size: .68rem; padding: 3px 8px; min-height: 0; border-radius: 6px; }
+  .legend { display: none; margin-top: 6px; }
+  .legend.open { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
 }
 </style>
 </head>
