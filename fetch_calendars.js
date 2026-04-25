@@ -22,15 +22,50 @@ const { execSync } = require('child_process');
 // ---------------------------------------------------------------------------
 
 const LIBRARIES = {
-  katonah:        { name: 'Katonah Village Library',              color: '#3a86ff' },
-  pound_ridge:    { name: 'Pound Ridge Library',                  color: '#06d6a0' },
-  bedford_free:   { name: 'Bedford Free Library',                 color: '#fb5607' },
-  bedford_hills:  { name: 'Bedford Hills Free Library',           color: '#8338ec' },
-  north_castle:   { name: 'North Castle Library (Armonk)',        color: '#e07a5f' },
-  mount_kisco:    { name: 'Mount Kisco Public Library',           color: '#f72585' },
-  mount_pleasant: { name: 'Mount Pleasant Library (Pleasantville)', color: '#43aa8b' },
-  chappaqua:      { name: 'Chappaqua Library',                    color: '#d4a017' },
-  larchmont:      { name: 'Larchmont Public Library',             color: '#577590' },
+  // --- Original 9 ---
+  katonah:                { name: 'Katonah Village Library',                 color: '#3a86ff' },
+  pound_ridge:            { name: 'Pound Ridge Library',                     color: '#06d6a0' },
+  bedford_free:           { name: 'Bedford Free Library',                    color: '#fb5607' },
+  bedford_hills:          { name: 'Bedford Hills Free Library',              color: '#8338ec' },
+  north_castle:           { name: 'North Castle Library (Armonk)',           color: '#e07a5f' },
+  mount_kisco:            { name: 'Mount Kisco Public Library',              color: '#f72585' },
+  mount_pleasant:         { name: 'Mount Pleasant Library (Pleasantville)',  color: '#43aa8b' },
+  chappaqua:              { name: 'Chappaqua Library',                       color: '#d4a017' },
+  larchmont:              { name: 'Larchmont Public Library',                color: '#577590' },
+  // --- New libraries ---
+  ardsley:                { name: 'Ardsley Public Library',                  color: '#e63946' },
+  briarcliff:             { name: 'Briarcliff Manor Public Library',         color: '#023e8a' },
+  bronxville:             { name: 'Bronxville Public Library',               color: '#4a4e69' },
+  croton:                 { name: 'Croton Free Library',                     color: '#f3722c' },
+  dobbs_ferry:            { name: 'Dobbs Ferry Public Library',              color: '#f8961e' },
+  eastchester:            { name: 'Eastchester Public Library',              color: '#f9c74f' },
+  field_library:          { name: 'The Field Library (Peekskill)',           color: '#90be6d' },
+  greenburgh:             { name: 'Greenburgh Public Library',               color: '#264653' },
+  harrison_halperin:      { name: 'Harrison Library (Halperin)',             color: '#6a994e' },
+  harrison_west:          { name: 'Harrison Library (West Harrison)',        color: '#5a7d4e' },
+  hastings:               { name: 'Hastings Public Library',                 color: '#bc6c25' },
+  hendrick_hudson:        { name: 'Hendrick Hudson Free Library',            color: '#7b2fff' },
+  irvington:              { name: 'Irvington Public Library',                color: '#b5838d' },
+  lewisboro:              { name: 'Lewisboro Library (South Salem)',         color: '#6d6875' },
+  mamaroneck:             { name: 'Mamaroneck Public Library',              color: '#d62828' },
+  mount_pleasant_valhalla:{ name: 'Mount Pleasant Library (Valhalla)',       color: '#48cae4' },
+  mount_vernon:           { name: 'Mount Vernon Public Library',             color: '#0096c7' },
+  new_rochelle_main:      { name: 'New Rochelle Library (Main)',             color: '#2b9348' },
+  new_rochelle_huguenot:  { name: 'New Rochelle Library (Huguenot)',        color: '#80b918' },
+  north_white_plains:     { name: 'North Castle Library (White Plains)',     color: '#4cc9f0' },
+  ossining:               { name: 'Ossining Public Library',                 color: '#9d4edd' },
+  pelham:                 { name: 'Town of Pelham Public Library',           color: '#ffbe0b' },
+  port_chester:           { name: 'Port Chester-Rye Brook Library',          color: '#52b788' },
+  ruth_keeler:            { name: 'Ruth Keeler Memorial Library',            color: '#7209b7' },
+  rye:                    { name: 'Rye Free Reading Room',                   color: '#3a0ca3' },
+  scarsdale:              { name: 'Scarsdale Public Library',                color: '#4361ee' },
+  tuckahoe:               { name: 'Tuckahoe Public Library',                 color: '#f77f00' },
+  warner:                 { name: 'Warner Library (Tarrytown)',              color: '#e76f51' },
+  white_plains:           { name: 'White Plains Public Library',             color: '#3d405b' },
+  yorktown:               { name: 'John C. Hart Library (Yorktown)',         color: '#c9184a' },
+  yonkers_riverfront:     { name: 'Yonkers Library (Riverfront)',           color: '#ff6b6b' },
+  yonkers_will:           { name: 'Yonkers Library (Will)',                  color: '#ffd166' },
+  yonkers_crestwood:      { name: 'Yonkers Library (Crestwood)',            color: '#02c39a' },
 };
 
 const FETCH_HEADERS = {
@@ -149,12 +184,25 @@ function sleep(ms) {
 // --- 1. librarycalendar.com / Drupal library_calendar (Katonah, Pound Ridge, Bedford Hills)
 
 const LC_BASES = {
-  katonah:        'https://katonah.librarycalendar.com',
-  pound_ridge:    'https://poundridge.librarycalendar.com',
-  bedford_hills:  'https://www.bedfordhillsfreelibrary.org',
-  mount_pleasant: 'https://mountpleasant.librarycalendar.com',
-  chappaqua:      'https://www.chappaqualibrary.org',
-  larchmont:      'https://larchmont.librarycalendar.com',
+  katonah:                 'https://katonah.librarycalendar.com',
+  pound_ridge:             'https://poundridge.librarycalendar.com',
+  bedford_hills:           'https://www.bedfordhillsfreelibrary.org',
+  mount_pleasant:          'https://mountpleasant.librarycalendar.com',
+  mount_pleasant_valhalla: 'https://mountpleasant.librarycalendar.com',
+  chappaqua:               'https://www.chappaqualibrary.org',
+  larchmont:               'https://larchmont.librarycalendar.com',
+  bronxville:              'https://bronxvillepl.librarycalendar.com',
+  hendrick_hudson:         'https://hendrickhudson.librarycalendar.com',
+  ossining:                'https://ossining.librarycalendar.com',
+  warner:                  'https://warnerlib.librarycalendar.com',
+  yorktown:                'https://yorktown.librarycalendar.com',
+  croton:                  'https://www.crotonfreelibrary.org',
+  scarsdale:               'https://www.scarsdalelibrary.org',
+  new_rochelle_main:       'https://newrochelle.librarycalendar.com',
+  new_rochelle_huguenot:   'https://newrochelle.librarycalendar.com',
+  yonkers_riverfront:      'https://www.ypl.org',
+  yonkers_will:            'https://www.ypl.org',
+  yonkers_crestwood:       'https://www.ypl.org',
 };
 
 function parseLcCalendar(html, libraryKey, options = {}) {
@@ -292,6 +340,126 @@ async function scrapeLarchmont() {
 }
 
 
+// --- new librarycalendar.com sites
+
+async function scrapeMountPleasantValhalla() {
+  const base = 'https://mountpleasant.librarycalendar.com/events/list';
+  const [kids, adults] = await Promise.all([
+    scrapeLcListView(base + '?age_groups[84]=84', 'mount_pleasant_valhalla', { category: 'kids', branchFilter: 'Branch Library' }),
+    scrapeLcListView(base + '?age_groups[157]=157', 'mount_pleasant_valhalla', { category: 'adult', branchFilter: 'Branch Library' }),
+  ]);
+  return [...kids, ...adults];
+}
+
+async function scrapeBronxville() {
+  const base = 'https://bronxvillepl.librarycalendar.com/events/list';
+  const [kids, adults] = await Promise.all([
+    scrapeLcListView(base + '?age_groups[213]=213&age_groups[148]=148&age_groups[153]=153&age_groups[195]=195', 'bronxville', { category: 'kids' }),
+    scrapeLcListView(base + '?age_groups[4]=4&age_groups[152]=152&age_groups[196]=196', 'bronxville', { category: 'adult' }),
+  ]);
+  return [...kids, ...adults];
+}
+
+async function scrapeHendrickHudson() {
+  const base = 'https://hendrickhudson.librarycalendar.com/events/list';
+  const [kids, adults] = await Promise.all([
+    scrapeLcListView(base + '?age_groups[1]=1&age_groups[2]=2', 'hendrick_hudson', { category: 'kids' }),
+    scrapeLcListView(base + '?age_groups[3]=3&age_groups[4]=4', 'hendrick_hudson', { category: 'adult' }),
+  ]);
+  return [...kids, ...adults];
+}
+
+async function scrapeOssining() {
+  const base = 'https://ossining.librarycalendar.com/events/list';
+  const [kids, adults] = await Promise.all([
+    scrapeLcListView(base + '?age_groups[75]=75&age_groups[76]=76', 'ossining', { category: 'kids' }),
+    scrapeLcListView(base + '?age_groups[77]=77&age_groups[78]=78', 'ossining', { category: 'adult' }),
+  ]);
+  return [...kids, ...adults];
+}
+
+async function scrapeWarner() {
+  const base = 'https://warnerlib.librarycalendar.com/events/list';
+  const [kids, adults] = await Promise.all([
+    scrapeLcListView(base + '?age_groups[1]=1&age_groups[2]=2&age_groups[145]=145&age_groups[146]=146&age_groups[94]=94&age_groups[5]=5', 'warner', { category: 'kids' }),
+    scrapeLcListView(base + '?age_groups[3]=3&age_groups[4]=4&age_groups[107]=107&age_groups[108]=108', 'warner', { category: 'adult' }),
+  ]);
+  return [...kids, ...adults];
+}
+
+async function scrapeYorktown() {
+  const base = 'https://yorktown.librarycalendar.com/events/list';
+  const [kids, adults] = await Promise.all([
+    scrapeLcListView(base + '?age_groups[2]=2', 'yorktown', { category: 'kids' }),
+    scrapeLcListView(base + '?age_groups[3]=3&age_groups[4]=4', 'yorktown', { category: 'adult' }),
+  ]);
+  return [...kids, ...adults];
+}
+
+async function scrapeCroton() {
+  const base = 'https://www.crotonfreelibrary.org/events/upcoming';
+  const [kids, adults] = await Promise.all([
+    scrapeLcListView(base + '?age_groups[34]=34&age_groups[93]=93&age_groups[94]=94&age_groups[95]=95', 'croton', { category: 'kids' }),
+    scrapeLcListView(base + '?age_groups[35]=35&age_groups[36]=36&age_groups[97]=97', 'croton', { category: 'adult' }),
+  ]);
+  return [...kids, ...adults];
+}
+
+async function scrapeScarsdale() {
+  const base = 'https://www.scarsdalelibrary.org/events/upcoming';
+  const [kids, adults] = await Promise.all([
+    scrapeLcListView(base + '?age_groups[556]=556', 'scarsdale', { category: 'kids' }),
+    scrapeLcListView(base + '?age_groups[22]=22&age_groups[23]=23&age_groups[96]=96', 'scarsdale', { category: 'adult' }),
+  ]);
+  return [...kids, ...adults];
+}
+
+async function scrapeNewRochelleMain() {
+  const base = 'https://newrochelle.librarycalendar.com/events/list';
+  const [kids, adults] = await Promise.all([
+    scrapeLcListView(base + '?age_groups[37]=37&age_groups[38]=38&age_groups[177]=177', 'new_rochelle_main', { category: 'kids', branchFilter: 'Main Library' }),
+    scrapeLcListView(base + '?age_groups[39]=39&age_groups[40]=40&age_groups[41]=41', 'new_rochelle_main', { category: 'adult', branchFilter: 'Main Library' }),
+  ]);
+  return [...kids, ...adults];
+}
+
+async function scrapeNewRochelleHuguenot() {
+  const base = 'https://newrochelle.librarycalendar.com/events/list';
+  const [kids, adults] = await Promise.all([
+    scrapeLcListView(base + '?age_groups[37]=37&age_groups[38]=38&age_groups[177]=177', 'new_rochelle_huguenot', { category: 'kids', branchFilter: 'Huguenot' }),
+    scrapeLcListView(base + '?age_groups[39]=39&age_groups[40]=40&age_groups[41]=41', 'new_rochelle_huguenot', { category: 'adult', branchFilter: 'Huguenot' }),
+  ]);
+  return [...kids, ...adults];
+}
+
+async function scrapeYonkersRiverfront() {
+  const base = 'https://www.ypl.org/events/list';
+  const [kids, adults] = await Promise.all([
+    scrapeLcListView(base + '?age_groups[178]=178&age_groups[179]=179', 'yonkers_riverfront', { category: 'kids', branchFilter: 'Riverfront' }),
+    scrapeLcListView(base + '?age_groups[4]=4&age_groups[5]=5&age_groups[183]=183&age_groups[6]=6', 'yonkers_riverfront', { category: 'adult', branchFilter: 'Riverfront' }),
+  ]);
+  return [...kids, ...adults];
+}
+
+async function scrapeYonkersWill() {
+  const base = 'https://www.ypl.org/events/list';
+  const [kids, adults] = await Promise.all([
+    scrapeLcListView(base + '?age_groups[178]=178&age_groups[179]=179', 'yonkers_will', { category: 'kids', branchFilter: 'Will Library' }),
+    scrapeLcListView(base + '?age_groups[4]=4&age_groups[5]=5&age_groups[183]=183&age_groups[6]=6', 'yonkers_will', { category: 'adult', branchFilter: 'Will Library' }),
+  ]);
+  return [...kids, ...adults];
+}
+
+async function scrapeYonkersCrestwood() {
+  const base = 'https://www.ypl.org/events/list';
+  const [kids, adults] = await Promise.all([
+    scrapeLcListView(base + '?age_groups[178]=178&age_groups[179]=179', 'yonkers_crestwood', { category: 'kids', branchFilter: 'Crestwood' }),
+    scrapeLcListView(base + '?age_groups[4]=4&age_groups[5]=5&age_groups[183]=183&age_groups[6]=6', 'yonkers_crestwood', { category: 'adult', branchFilter: 'Crestwood' }),
+  ]);
+  return [...kids, ...adults];
+}
+
+
 // --- 2. Bedford Free Library (WordPress + Events Manager plugin)
 
 async function fetchBedfordFreePage(urlPath, year, month, category) {
@@ -337,12 +505,12 @@ async function scrapeBedfordFree(year, month) {
 }
 
 
-// --- 3. North Castle / Armonk (MH Software connectDaily)
+// --- 3. MH Software connectDaily (North Castle Armonk + North White Plains)
 
-async function scrapeNorthCastle(year, month) {
+async function scrapeMhSoftware(calendarId, libraryKey, year, month, typeMap = { kids: ['9', '22'], adult: ['7', '18'] }) {
   const url =
     `https://ncpl.mhsoftware.com/ViewNonBannerMonth.html` +
-    `?calendar_id=2&year=${year}&month=${month}`;
+    `?calendar_id=${calendarId}&year=${year}&month=${month}`;
   const html = await fetchHtml(url);
   const events = [];
   if (!html) return events;
@@ -384,13 +552,13 @@ async function scrapeNorthCastle(year, month) {
 
     if (eventDate < cutoff) return;
 
-    // item_type_id: 9=Children, 22=Virtual Children, 7=Adult, 18=Teen
+    // item_type_id mapped per-calendar via typeMap argument
     $td.find('a.MHVCItemLink').each((_, a) => {
       const $a     = $(a);
       const typeId = $a.attr('data-item_type_id') || '';
       let category;
-      if (typeId === '9' || typeId === '22') category = 'kids';
-      else if (typeId === '7' || typeId === '18') category = 'adult';
+      if (typeMap.kids.includes(typeId))        category = 'kids';
+      else if (typeMap.adult.includes(typeId))  category = 'adult';
       else return;
 
       const title   = $a.text().trim();
@@ -403,11 +571,21 @@ async function scrapeNorthCastle(year, month) {
         ? `https://ncpl.mhsoftware.com/ViewItem.html?integral=0&cal_item_id=${popMatch[1]}&dtwhen=${popMatch[2]}`
         : '';
 
-      events.push({ date: eventDate, time: timeStr, title, url: eventUrl, library: 'north_castle', category });
+      events.push({ date: eventDate, time: timeStr, title, url: eventUrl, library: libraryKey, category });
     });
   });
 
   return events;
+}
+
+async function scrapeNorthCastle(year, month) {
+  return scrapeMhSoftware(2, 'north_castle', year, month);
+}
+
+async function scrapeNorthWhitePlains(year, month) {
+  // White Plains branch uses different item_type_ids than Armonk
+  // 13=Children, 15=Adult, 21/22/25=General programs (adult)
+  return scrapeMhSoftware(5, 'north_white_plains', year, month, { kids: ['13'], adult: ['15', '21', '22', '25'] });
 }
 
 
@@ -504,6 +682,632 @@ async function scrapeMountKisco(year, month) {
 
 
 // ---------------------------------------------------------------------------
+// --- 5. LibCal / Springshare (JSON AJAX endpoint — no browser needed)
+//
+// Each LibCal site exposes a public AJAX list endpoint:
+//   /ajax/calendar/list?c=CAL_ID&date=0000-00-00&perpage=100&page=N
+// Returns JSON with total_results, results[], each with ymd, start, end,
+// title, url, audiences[], categories.
+
+async function scrapeLibCalAjax(subdomain, calId, libraryKey) {
+  const cutoff  = today();
+  const events  = [];
+  const headers = { ...FETCH_HEADERS, 'X-Requested-With': 'XMLHttpRequest' };
+
+  let page = 1;
+  while (true) {
+    const url = `https://${subdomain}.libcal.com/ajax/calendar/list?c=${calId}&date=0000-00-00&perpage=100&page=${page}`;
+    let j;
+    try {
+      const r = await fetch(url, { headers, signal: AbortSignal.timeout(20_000) });
+      if (!r.ok) break;
+      j = await r.json();
+    } catch (e) {
+      console.log(`    [warn] LibCal ${libraryKey} page ${page}: ${e.message}`);
+      break;
+    }
+    if (!j.results?.length) break;
+
+    for (const e of j.results) {
+      const ymd = String(e.ymd || '');
+      if (ymd.length !== 8) continue;
+      const eventDate = new Date(
+        parseInt(ymd.slice(0, 4)),
+        parseInt(ymd.slice(4, 6)) - 1,
+        parseInt(ymd.slice(6, 8))
+      );
+      if (isNaN(eventDate.getTime()) || eventDate < cutoff) continue;
+
+      const audNames = (e.audiences || []).map(a => a.name.toLowerCase());
+      const catStr   = (e.categories || '').toLowerCase();
+      let category   = 'both';
+      if (audNames.length) {
+        const hasKids  = audNames.some(a => /child|kid|family|baby|toddler|preschool/.test(a));
+        const hasAdult = audNames.some(a => /adult|senior|teen|tween/.test(a));
+        if (hasKids && !hasAdult)  category = 'kids';
+        else if (!hasKids && hasAdult) category = 'adult';
+        else category = 'both';
+      } else if (catStr) {
+        if (/child|kid|family|baby|toddler|preschool|school.age/.test(catStr)) category = 'kids';
+        else if (/adult|senior|teen|tween|book.club|film/.test(catStr))         category = 'adult';
+      }
+
+      const timeStr = e.start && e.end ? `${e.start} – ${e.end}` : (e.start || '');
+      const title   = (e.title || '').trim();
+      if (!title) continue;
+
+      events.push({ date: eventDate, time: timeStr, title, url: e.url || '', library: libraryKey, category });
+    }
+
+    const totalPages = Math.ceil((j.total_results || 0) / 100);
+    if (page >= totalPages) break;
+    page++;
+    await sleep(300);
+  }
+
+  return events;
+}
+
+async function scrapeEastchester() { return scrapeLibCalAjax('eastchesterlibrary', 19731, 'eastchester'); }
+async function scrapeGreenburgh()  { return scrapeLibCalAjax('greenburghlibrary',  7925,  'greenburgh'); }
+async function scrapeIrvington()   { return scrapeLibCalAjax('irvingtonlibrary',   19269, 'irvington'); }
+async function scrapeTuckahoe()    { return scrapeLibCalAjax('tuckahoelibrary',    7699,  'tuckahoe'); }
+async function scrapeRye()         { return scrapeLibCalAjax('ryelibrary',         17843, 'rye'); }
+
+
+// --- 6. Tribe Events / The Events Calendar (WordPress)
+
+async function scrapeTribeEvents(baseUrl, libraryKey, kidsSlugs, adultSlugs) {
+  const cutoff  = today();
+
+  async function fetchTribePage(url, category, depth = 0) {
+    if (depth >= 3) return [];
+    const html = await fetchHtml(url);
+    if (!html) return [];
+    const $      = cheerio.load(html);
+    const events = [];
+
+    // Support both legacy and modern Tribe Events markup
+    const sel = 'article.tribe-events-calendar-list__event, article[class*="tribe_events"], article[class*="tribe-event"]';
+    $(sel).each((_, el) => {
+      const $el     = $(el);
+      const titleEl = $el.find('[class*=event-title] a, h2 a, h3 a, .tribe-event-url, .tribe-events-list-event-title a').first();
+      const title   = titleEl.text().trim();
+      const href    = titleEl.attr('href') || '';
+      if (!title) return;
+
+      // Prefer time[datetime] (modern markup), fall back to text parsing
+      const timeEl   = $el.find('time[datetime]').first();
+      const datetime = timeEl.attr('datetime') || '';
+      let eventDate  = datetime ? new Date(datetime.slice(0, 10) + 'T00:00:00') : null;
+      if (!eventDate || isNaN(eventDate.getTime())) {
+        const dateText = $el.find('.tribe-events-schedule, .tribe-events-start-datetime, .tribe-event-date-start').first().text().trim();
+        eventDate = parseDateStr(dateText);
+      }
+      if (!eventDate || isNaN(eventDate.getTime()) || eventDate < cutoff) return;
+
+      const timeStr = $el.find('.tribe-events-schedule, .tribe-events-divider, .tribe-event-date-start').first().text().trim().replace(/\s+/g, ' ');
+
+      events.push({ date: new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate()), time: timeStr, title, url: href, library: libraryKey, category });
+    });
+
+    const nextUrl = $('a.tribe-events-nav-next, .tribe-events-c-nav__next').attr('href');
+    if (nextUrl && events.length > 0) {
+      const nextEvs = await fetchTribePage(nextUrl, category, depth + 1);
+      events.push(...nextEvs);
+    }
+    return events;
+  }
+
+  const batches = await Promise.all([
+    ...kidsSlugs.map(s => fetchTribePage(baseUrl + s, 'kids')),
+    ...adultSlugs.map(s => fetchTribePage(baseUrl + s, 'adult')),
+  ]);
+  return batches.flat();
+}
+
+async function scrapeMamaroneck() {
+  return scrapeTribeEvents('https://www.mamaronecklibrary.org', 'mamaroneck',
+    ['/events/category/children/list'],
+    ['/events/category/adult/list']);
+}
+
+async function scrapeLewisboro() {
+  return scrapeTribeEvents('https://lewisborolibrary.org', 'lewisboro',
+    ['/events/category/child/'],
+    ['/events/category/adult/']);
+}
+
+async function scrapeBriarcliff() {
+  // Uses Tribe Events REST API (calendar page is JS-rendered, no static event articles)
+  const cutoff   = today();
+  const events   = [];
+  const todayStr = new Date().toISOString().slice(0, 10);
+
+  function fmt12(t) {
+    if (!t) return '';
+    const [h, m] = t.split(':').map(Number);
+    const ap = h >= 12 ? 'pm' : 'am';
+    return `${h === 0 ? 12 : h > 12 ? h - 12 : h}:${String(m).padStart(2, '0')}${ap}`;
+  }
+
+  try {
+    let page = 1;
+    while (true) {
+      const url = `https://briarcliffmanorlibrary.org/wp-json/tribe/events/v1/events?per_page=50&start_date=${todayStr}&page=${page}`;
+      const r   = await fetch(url, { headers: FETCH_HEADERS, signal: AbortSignal.timeout(20_000) });
+      if (!r.ok) break;
+      const j = await r.json();
+      if (!j.events?.length) break;
+
+      for (const e of j.events) {
+        const cats = (e.categories || []).map(c => c.name.toLowerCase());
+        if (cats.some(c => c.includes('board'))) continue;
+        let category = 'both';
+        if (cats.some(c => /child|famil|kid/.test(c))) category = 'kids';
+        else if (cats.some(c => /adult|teen|senior/.test(c))) category = 'adult';
+
+        const eventDate = new Date(e.start_date.slice(0, 10) + 'T00:00:00');
+        if (isNaN(eventDate.getTime()) || eventDate < cutoff) continue;
+
+        const timeStr = e.start_date.slice(11, 16)
+          ? fmt12(e.start_date.slice(11, 16)) + (e.end_date ? ' – ' + fmt12(e.end_date.slice(11, 16)) : '')
+          : '';
+        const title = e.title.replace(/&amp;/g, '&').replace(/&#(\d+);/g, (_, c) => String.fromCharCode(c));
+        events.push({ date: eventDate, time: timeStr, title, url: e.url || '', library: 'briarcliff', category });
+      }
+      if (page >= (j.total_pages || 1)) break;
+      page++;
+      await sleep(300);
+    }
+  } catch (e) {
+    console.log(`    [error] Briarcliff: ${e.message}`);
+  }
+  return events;
+}
+
+async function scrapeDobbsFerry() {
+  // Events Manager plugin — pages use .em-item with img[alt] for title and "Month DD" date format
+  const cutoff = today();
+  const events = [];
+  const yr     = new Date().getFullYear();
+
+  function parseDFDate(raw) {
+    const text = raw.replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
+    // "March 30" — try current year then next year
+    for (const y of [yr, yr + 1]) {
+      const d = parseDateStr(text + ', ' + y);
+      if (d && d >= cutoff) return d;
+    }
+    return null;
+  }
+
+  // Kids page + general calendar (deduplicated by generateHtml)
+  const pages = [
+    ['https://dobbsferrylibrary.org/youth-services/calendar-for-young-people/', null],
+    ['https://dobbsferrylibrary.org/programs-2/calendar/', null],
+  ];
+
+  for (const [url] of pages) {
+    const html = await fetchHtml(url);
+    if (!html) continue;
+    const $ = cheerio.load(html);
+
+    $('.em-event, .em-item').each((_, el) => {
+      const $el  = $(el);
+      const title = $el.find('.em-item-image img').first().attr('alt') || '';
+      if (!title || title.length < 3) return;
+
+      const href    = $el.find('a.em-item-read-more, a[href*="/events/"]').last().attr('href') || '';
+      const dateRaw = $el.find('.em-event-date, .em-event-meta-datetime').first().text();
+      const eventDate = parseDFDate(dateRaw);
+      if (!eventDate) return;
+
+      const timeStr = $el.find('.em-event-time').first().text().replace(/\s+/g, ' ').trim();
+
+      const catText = $el.find('.em-event-categories a').map((_, a) => $(a).text().toLowerCase()).get().join(' ');
+      let category = 'both';
+      if (/child|kid|preschool|family|baby|elementary|toddler|school age|youth/.test(catText)) category = 'kids';
+      else if (/^adult|adult$|senior|teen|tween|book group|film/.test(catText)) category = 'adult';
+      else if (catText.includes('all ages')) category = 'both';
+
+      events.push({ date: eventDate, time: timeStr, title, url: href, library: 'dobbs_ferry', category });
+    });
+    await sleep(400);
+  }
+  return events;
+}
+
+
+// --- 7. White Plains (Communico JSON API — plain fetch, no browser)
+
+async function scrapeWhitePlains() {
+  const cutoff  = today();
+  const events  = [];
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const base    = 'https://calendar.whiteplainslibrary.org/eeventcaldata?event_type=0&req=';
+
+  for (const [ageGroup, category] of [['Children', 'kids'], ['Adults', 'adult']]) {
+    const req = JSON.stringify({ private: false, date: todayStr, days: 90, locations: [], ages: [ageGroup], types: [] });
+    const url = base + encodeURIComponent(req);
+    let evts;
+    try {
+      const r = await fetch(url, { headers: FETCH_HEADERS, signal: AbortSignal.timeout(20_000) });
+      if (!r.ok) continue;
+      evts = await r.json();
+    } catch (e) {
+      console.log(`    [warn] White Plains ${category}: ${e.message}`);
+      continue;
+    }
+
+    for (const e of evts) {
+      const rawStart = e.raw_start_time || '';         // "2026-04-24 11:00:00"
+      const datePart = rawStart.slice(0, 10);
+      if (!datePart.match(/^\d{4}-\d{2}-\d{2}$/)) continue;
+      const eventDate = new Date(datePart + 'T00:00:00');
+      if (isNaN(eventDate.getTime()) || eventDate < cutoff) continue;
+
+      const title   = (e.title || '').trim();
+      if (!title) continue;
+      const timeStr = e.start_time && e.end_time ? `${e.start_time} – ${e.end_time}` : (e.start_time || '');
+      const href    = (e.url || '').replace('//', '/').replace('https:/', 'https://');
+
+      events.push({ date: eventDate, time: timeStr, title, url: href, library: 'white_plains', category });
+    }
+    await sleep(400);
+  }
+  return events;
+}
+
+
+// --- 8. Ardsley (Weebly — separate pages per audience)
+// Dates appear in <strong> tags as: "Month DDth at H:MM AM: Event Title" (no year)
+
+const ARDSLEY_DATE_RE = /\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2})(?:st|nd|rd|th)?\b/i;
+const ARDSLEY_TIME_RE = /\bat\s+(\d{1,2}(?::\d{2})?\s*[ap]m)/i;
+
+function parseArdsleyDate(text) {
+  const m = text.match(ARDSLEY_DATE_RE);
+  if (!m) return null;
+  const yr = new Date().getFullYear();
+  for (const y of [yr, yr + 1]) {
+    const d = parseDateStr(`${m[1]} ${parseInt(m[2])}, ${y}`);
+    if (d && d >= today()) return d;
+  }
+  return null;
+}
+
+async function scrapeArdsley() {
+  const pages = [
+    ['https://www.ardsleypubliclibrary.org/adults.html',          'adult'],
+    ['https://www.ardsleypubliclibrary.org/teen-scene.html',      'adult'],
+    ['https://www.ardsleypubliclibrary.org/preschool-place.html', 'kids'],
+    ['https://www.ardsleypubliclibrary.org/school-age-kids.html', 'kids'],
+  ];
+  const events = [];
+
+  for (const [url, category] of pages) {
+    const html = await fetchHtml(url);
+    if (!html) continue;
+    const $ = cheerio.load(html);
+    $('nav, header, footer, script, style').remove();
+
+    // Each event lives in a <strong> or <b> tag inside div.paragraph or p
+    $('div.paragraph, p').each((_, el) => {
+      $(el).find('strong, b').each((__, strong) => {
+        // strip zero-width spaces and &nbsp;
+        const text = $(strong).text().replace(/[​ ]/g, ' ').replace(/\s+/g, ' ').trim();
+        if (!text || text.length < 5) return;
+        const eventDate = parseArdsleyDate(text);
+        if (!eventDate) return;
+
+        // Title: text after the first ":" (which follows the date+time), stripped of the time phrase
+        const colonIdx = text.indexOf(':');
+        let title = colonIdx > -1 ? text.slice(colonIdx + 1).trim() : '';
+        title = title.replace(ARDSLEY_TIME_RE, '').trim();
+        if (!title || title.length < 4) {
+          title = text.replace(ARDSLEY_DATE_RE, '').replace(ARDSLEY_TIME_RE, '').replace(/^[:\s\-–]+/, '').trim();
+        }
+        if (!title || title.length < 4) return;
+
+        const timeMatch = text.match(ARDSLEY_TIME_RE);
+        const timeStr   = timeMatch ? timeMatch[1].trim() : '';
+        events.push({ date: eventDate, time: timeStr, title, url, library: 'ardsley', category });
+      });
+    });
+
+    await sleep(300);
+  }
+
+  // Deduplicate
+  const seen = new Set();
+  return events.filter(e => {
+    const k = `${e.title}|${dateKey(e.date)}`;
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+}
+
+
+// --- 9. Harrison Public Library (custom LibCal proxy API)
+// Returns JSONP-wrapped JSON for a date range; branches filtered by category name
+
+async function scrapeHarrisonBranch(branchCategory, libraryKey) {
+  const cutoff  = today();
+  const events  = [];
+  const start   = new Date().toISOString().slice(0, 10) + 'T00:00:00-04:00';
+  const endDate = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10) + 'T00:00:00-04:00';
+  const url     = `https://www.harrisonpl.org/asdk_asdiou/wp-content/themes/hpl-2016/api/v3/libcal/events?start=${encodeURIComponent(start)}&end=${encodeURIComponent(endDate)}`;
+
+  let data;
+  try {
+    const r = await fetch(url, { headers: FETCH_HEADERS, signal: AbortSignal.timeout(20_000) });
+    if (!r.ok) return events;
+    const text = await r.text();
+    const json = text.replace(/^\)\]\}',?\s*/, '');
+    data = JSON.parse(json);
+  } catch (e) {
+    console.log(`    [error] Harrison ${libraryKey}: ${e.message}`);
+    return events;
+  }
+
+  for (const e of (data.data || [])) {
+    const cats = (e.extendedProps?.categories || []).map(c => c.name.trim().toUpperCase());
+    if (!cats.includes(branchCategory)) continue;
+
+    const eventDate = new Date(e.start.slice(0, 10) + 'T00:00:00');
+    if (isNaN(eventDate.getTime()) || eventDate < cutoff) continue;
+
+    const auds = (e.extendedProps?.audiences || []).map(a => a.name.toLowerCase());
+    let category = 'both';
+    if (auds.some(a => /kid|child/.test(a)) && !auds.some(a => /adult/.test(a))) category = 'kids';
+    else if (auds.some(a => /adult|young adult/.test(a)) && !auds.some(a => /kid|child/.test(a))) category = 'adult';
+
+    const startTime = e.start.slice(11, 16);
+    const endTime   = e.end?.slice(11, 16);
+    const fmt12 = t => {
+      if (!t) return '';
+      const [h, m] = t.split(':').map(Number);
+      const ap = h >= 12 ? 'pm' : 'am';
+      return `${h === 0 ? 12 : h > 12 ? h - 12 : h}:${String(m).padStart(2, '0')}${ap}`;
+    };
+    const timeStr = endTime ? `${fmt12(startTime)} – ${fmt12(endTime)}` : fmt12(startTime);
+    const title   = (e.title || '').trim();
+    if (!title) continue;
+
+    events.push({ date: eventDate, time: timeStr, title, url: e.url || '', library: libraryKey, category });
+  }
+  return events;
+}
+
+async function scrapeHarrisonHalperin() { return scrapeHarrisonBranch('DOWNTOWN HARRISON', 'harrison_halperin'); }
+async function scrapeHarrisonWest()     { return scrapeHarrisonBranch('WEST HARRISON',     'harrison_west'); }
+
+
+// --- 10. Field Library (Peekskill) — Tribe Events REST API
+
+async function scrapeFieldLibrary() {
+  const cutoff   = today();
+  const events   = [];
+  const todayStr = new Date().toISOString().slice(0, 10);
+
+  function fmt12(t) {
+    if (!t) return '';
+    const [h, m] = t.split(':').map(Number);
+    const ap = h >= 12 ? 'pm' : 'am';
+    return `${h === 0 ? 12 : h > 12 ? h - 12 : h}:${String(m).padStart(2, '0')}${ap}`;
+  }
+
+  try {
+    let page = 1;
+    while (true) {
+      const url = `https://www.thefieldlibrary.org/wp-json/tribe/events/v1/events?per_page=50&start_date=${todayStr}&page=${page}`;
+      const r   = await fetch(url, { headers: FETCH_HEADERS, signal: AbortSignal.timeout(20_000) });
+      if (!r.ok) break;
+      const j = await r.json();
+      if (!j.events?.length) break;
+
+      for (const e of j.events) {
+        const cats = (e.categories || []).map(c => c.name.toLowerCase());
+        let category = 'both';
+        if (cats.some(c => /child|famil|kid/.test(c))) category = 'kids';
+        else if (cats.some(c => /adult|senior|teen/.test(c))) category = 'adult';
+
+        const eventDate = new Date(e.start_date.slice(0, 10) + 'T00:00:00');
+        if (isNaN(eventDate.getTime()) || eventDate < cutoff) continue;
+
+        const timeStr = e.start_date.slice(11, 16)
+          ? fmt12(e.start_date.slice(11, 16)) + (e.end_date ? ' – ' + fmt12(e.end_date.slice(11, 16)) : '')
+          : '';
+        const title = (e.title || '').replace(/&amp;/g, '&').replace(/&#(\d+);/g, (_, c) => String.fromCharCode(c));
+        events.push({ date: eventDate, time: timeStr, title, url: e.url || '', library: 'field_library', category });
+      }
+      if (page >= (j.total_pages || 1)) break;
+      page++;
+      await sleep(300);
+    }
+  } catch (e) {
+    console.log(`    [error] Field Library: ${e.message}`);
+  }
+  return events;
+}
+
+
+// --- 10. Pelham (Events Manager — no categories, tag all 'both')
+
+const ABBR_MONTH = { Jan:1, Feb:2, Mar:3, Apr:4, May:5, Jun:6, Jul:7, Aug:8, Sep:9, Oct:10, Nov:11, Dec:12 };
+
+async function scrapePelham() {
+  const cutoff  = today();
+  const events  = [];
+  const months  = getMonths(3);
+
+  function parsePelhamDate(day, abbr) {
+    const monthNum = ABBR_MONTH[abbr];
+    if (!monthNum || !day) return null;
+    const yr = new Date().getFullYear();
+    for (const y of [yr, yr + 1]) {
+      const d = new Date(y, monthNum - 1, parseInt(day));
+      if (d >= cutoff) return d;
+    }
+    return null;
+  }
+
+  function slugToTitle(slug) {
+    // Remove date patterns (YYYY-MM-DD) and trailing numeric suffix
+    return slug
+      .replace(/-?\d{4}-\d{2}-\d{2}/g, '')  // remove all date segments
+      .replace(/-\d+$/, '')                   // remove trailing -N
+      .replace(/-/g, ' ')
+      .trim()
+      .replace(/\b\w/g, l => l.toUpperCase());
+  }
+
+  const seen = new Set();
+  for (const [year, month] of months) {
+    const url = `https://www.pelhamlibrary.org/calendar/?mo=${month}&yr=${year}`;
+    const html = await fetchHtml(url);
+    if (!html) continue;
+    const $ = cheerio.load(html);
+
+    $('.em-event, li.em-event').each((_, el) => {
+      const $el   = $(el);
+      const day   = $el.find('.date .day').text().trim();
+      const abbr  = $el.find('.date .month').text().trim();
+      const eventDate = parsePelhamDate(day, abbr);
+      if (!eventDate) return;
+
+      const href  = $el.find('a[href*="/programs/"], a[href*="/event/"], a.em-item-read-more').last().attr('href') || '';
+      const slug  = href.split('/').filter(Boolean).pop() || '';
+      const title = slugToTitle(slug);
+      if (!title || title.length < 3) return;
+
+      const key = `${title}|${dateKey(eventDate)}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+
+      const timeRaw = $el.find('.em-event-time').text().replace(/<br\s*\/?>/gi, ' ').replace(/\s+/g, ' ').trim();
+      events.push({ date: eventDate, time: timeRaw, title, url: href, library: 'pelham', category: 'both' });
+    });
+    await sleep(400);
+  }
+  return events;
+}
+
+
+// --- 11. Hastings Public Library (SimpleCalendar WordPress plugin over Google Calendar)
+// Uses admin-ajax.php POST to fetch each month's grid.
+
+async function scrapeHastings() {
+  const cutoff  = today();
+  const events  = [];
+  const months  = getMonths(3);
+  const ajaxUrl = 'https://hastingslibrary.org/wp-admin/admin-ajax.php';
+  const calId   = 3486;
+
+  for (const [year, month] of months) {
+    const body = `action=simcal_default_calendar_draw_grid&month=${month}&year=${year}&id=${calId}`;
+    let html;
+    try {
+      const r = await fetch(ajaxUrl, {
+        method: 'POST',
+        headers: { ...FETCH_HEADERS, 'Content-Type': 'application/x-www-form-urlencoded' },
+        body,
+        signal: AbortSignal.timeout(20_000),
+      });
+      if (!r.ok) continue;
+      const j = await r.json();
+      html = j.data || '';
+    } catch (e) {
+      console.log(`    [warn] Hastings ${year}/${month}: ${e.message}`);
+      continue;
+    }
+
+    const $ = cheerio.load(html);
+    $('li.simcal-event').each((_, el) => {
+      const $el   = $(el);
+      const title = $el.find('.simcal-event-title').first().text().trim();
+      if (!title || title.length < 3) return;
+
+      const dateContent = $el.find('.simcal-event-start-date').first().attr('content') || '';
+      const datePart    = dateContent.slice(0, 10);
+      if (!datePart.match(/^\d{4}-\d{2}-\d{2}$/)) return;
+      const eventDate = new Date(datePart + 'T00:00:00');
+      if (isNaN(eventDate.getTime()) || eventDate < cutoff) return;
+
+      const startTime = dateContent.slice(11, 16);
+      const fmt12 = t => {
+        if (!t || t === '00:00') return '';
+        const [h, m] = t.split(':').map(Number);
+        const ap = h >= 12 ? 'pm' : 'am';
+        return `${h === 0 ? 12 : h > 12 ? h - 12 : h}:${String(m).padStart(2, '0')}${ap}`;
+      };
+      const timeStr = fmt12(startTime);
+
+      const gcalLink = $el.find('a[href*="google.com/calendar/event"]').attr('href') || '';
+      events.push({ date: eventDate, time: timeStr, title, url: gcalLink, library: 'hastings', category: 'both' });
+    });
+    await sleep(400);
+  }
+
+  // Deduplicate (recurring events appear on every occurrence)
+  const seen = new Set();
+  return events.filter(e => {
+    const k = `${e.title}|${dateKey(e.date)}`;
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+}
+
+
+// --- 12. Ruth Keeler Memorial Library (Tockify API)
+
+async function scrapeRuthKeeler() {
+  const cutoff = today();
+  const events = [];
+  const now    = Date.now();
+
+  // Only adult calendar found; children's calname not public — tag all as 'both'
+  for (const calname of ['rkmladult']) {
+    let j;
+    try {
+      const r = await fetch(
+        `https://api.tockify.com/api/ngevent?calname=${calname}&max=200&startDate=${now}`,
+        { headers: FETCH_HEADERS, signal: AbortSignal.timeout(20_000) }
+      );
+      if (!r.ok) continue;
+      j = await r.json();
+    } catch (e) {
+      console.log(`    [warn] Ruth Keeler ${calname}: ${e.message}`);
+      continue;
+    }
+
+    for (const e of (j.events || [])) {
+      const startMs = e.when?.start?.millis;
+      if (!startMs || startMs < now) continue;
+      const eventDate = new Date(startMs);
+      if (eventDate < cutoff) continue;
+      const title = (e.content?.summary?.text || '').trim();
+      if (!title) continue;
+      const endMs    = e.when?.end?.millis;
+      const fmt = ms => {
+        const d = new Date(ms);
+        let h = d.getHours(), m = d.getMinutes();
+        const ap = h >= 12 ? 'pm' : 'am';
+        h = h === 0 ? 12 : h > 12 ? h - 12 : h;
+        return `${h}:${String(m).padStart(2,'0')}${ap}`;
+      };
+      const timeStr = endMs ? `${fmt(startMs)} – ${fmt(endMs)}` : fmt(startMs);
+      events.push({ date: new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate()), time: timeStr, title, url: '', library: 'ruth_keeler', category: 'adult' });
+    }
+    await sleep(300);
+  }
+  return events;
+}
+
+
 // HTML generation
 // ---------------------------------------------------------------------------
 
@@ -817,14 +1621,27 @@ async function main() {
   const allEvents = [];
   let   mountKiscoMissing = false;
 
-  // These libraries all use the Drupal library_calendar platform with internal pagination
+  // librarycalendar.com / Drupal sites — internal pagination, called once
   const lcScrapers = [
     ['Katonah Village Library',              scrapeKatonah],
     ['Pound Ridge Library',                  scrapePoundRidge],
     ['Bedford Hills Free Library',           scrapeBedfordHills],
     ['Mount Pleasant Library (Pleasantville)', scrapeMountPleasant],
+    ['Mount Pleasant Library (Valhalla)',    scrapeMountPleasantValhalla],
     ['Chappaqua Library',                    scrapeChappaqua],
     ['Larchmont Public Library',             scrapeLarchmont],
+    ['Bronxville Public Library',            scrapeBronxville],
+    ['Hendrick Hudson Free Library',         scrapeHendrickHudson],
+    ['Ossining Public Library',              scrapeOssining],
+    ['Warner Library (Tarrytown)',           scrapeWarner],
+    ['John C. Hart Library (Yorktown)',      scrapeYorktown],
+    ['Croton Free Library',                  scrapeCroton],
+    ['Scarsdale Public Library',             scrapeScarsdale],
+    ['New Rochelle Library (Main)',          scrapeNewRochelleMain],
+    ['New Rochelle Library (Huguenot)',      scrapeNewRochelleHuguenot],
+    ['Yonkers Library (Riverfront)',         scrapeYonkersRiverfront],
+    ['Yonkers Library (Will)',               scrapeYonkersWill],
+    ['Yonkers Library (Crestwood)',          scrapeYonkersCrestwood],
   ];
   for (const [name, scraper] of lcScrapers) {
     console.log(`Fetching ${name}...`);
@@ -833,10 +1650,11 @@ async function main() {
     console.log(`  → ${evs.length} events`);
   }
 
-  // Bedford Free and North Castle loop through months
+  // Sites that loop through months
   const monthScrapers = [
-    ['Bedford Free Library',          scrapeBedfordFree],
-    ['North Castle Library (Armonk)', scrapeNorthCastle],
+    ['Bedford Free Library',             scrapeBedfordFree],
+    ['North Castle Library (Armonk)',    scrapeNorthCastle],
+    ['North Castle Library (White Plains)', scrapeNorthWhitePlains],
   ];
   for (const [name, scraper] of monthScrapers) {
     console.log(`Fetching ${name}...`);
@@ -865,6 +1683,60 @@ async function main() {
     await sleep(400);
   }
   if (!mountKiscoMissing) console.log(`  → ${mkCount} events`);
+
+  // Tribe Events / Mamaroneck, Lewisboro, Briarcliff, Dobbs Ferry
+  const tribeScrapers = [
+    ['Mamaroneck Public Library',       scrapeMamaroneck],
+    ['Lewisboro Library (South Salem)', scrapeLewisboro],
+    ['Briarcliff Manor Library',        scrapeBriarcliff],
+    ['Dobbs Ferry Public Library',      scrapeDobbsFerry],
+  ];
+  for (const [name, scraper] of tribeScrapers) {
+    console.log(`Fetching ${name}...`);
+    const evs = await scraper();
+    allEvents.push(...evs);
+    console.log(`  → ${evs.length} events`);
+  }
+
+  // Ardsley (flat Weebly pages)
+  console.log('Fetching Ardsley Public Library...');
+  { const evs = await scrapeArdsley(); allEvents.push(...evs); console.log(`  → ${evs.length} events`); }
+
+  // LibCal sites (JSON AJAX — no browser needed)
+  const libCalSites = [
+    ['Eastchester Public Library', scrapeEastchester],
+    ['Greenburgh Public Library',  scrapeGreenburgh],
+    ['Irvington Public Library',   scrapeIrvington],
+    ['Tuckahoe Public Library',    scrapeTuckahoe],
+    ['Rye Free Reading Room',      scrapeRye],
+  ];
+  for (const [name, scraper] of libCalSites) {
+    console.log(`Fetching ${name}...`);
+    const evs = await scraper();
+    allEvents.push(...evs);
+    console.log(`  → ${evs.length} events`);
+  }
+
+  // White Plains (Communico JSON API)
+  console.log('Fetching White Plains Public Library...');
+  { const evs = await scrapeWhitePlains(); allEvents.push(...evs); console.log(`  → ${evs.length} events`); }
+
+  // Field Library (Tribe REST API), Ruth Keeler (Tockify), Harrison (custom API), Hastings (SimpleCalendar)
+  for (const [name, scraper] of [
+    ['The Field Library (Peekskill)',    scrapeFieldLibrary],
+    ['Ruth Keeler Memorial Library',     scrapeRuthKeeler],
+    ['Harrison Library (Halperin)',      scrapeHarrisonHalperin],
+    ['Harrison Library (West Harrison)', scrapeHarrisonWest],
+    ['Hastings Public Library',          scrapeHastings],
+  ]) {
+    console.log(`Fetching ${name}...`);
+    const evs = await scraper();
+    allEvents.push(...evs);
+    console.log(`  → ${evs.length} events`);
+  }
+
+  console.log('Fetching Town of Pelham Public Library...');
+  { const evs = await scrapePelham(); allEvents.push(...evs); console.log(`  → ${evs.length} events`); }
 
   console.log(`\nTotal events: ${allEvents.length}`);
 
