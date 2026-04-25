@@ -950,7 +950,7 @@ async function scrapeWhitePlains() {
       const title   = (e.title || '').trim();
       if (!title) continue;
       const timeStr = e.start_time && e.end_time ? `${e.start_time} – ${e.end_time}` : (e.start_time || '');
-      const href    = (e.url || '').replace('//', '/').replace('https:/', 'https://');
+      const href    = (e.url || '').replace(/([^:])\/\//g, '$1/');
 
       events.push({ date: eventDate, time: timeStr, title, url: href, library: 'white_plains', category });
     }
@@ -963,8 +963,13 @@ async function scrapeWhitePlains() {
 // --- 8. Ardsley (Weebly — separate pages per audience)
 // Dates appear in <strong> tags as: "Month DDth at H:MM AM: Event Title" (no year)
 
+// Two patterns in <strong> tags (no year, ordinal days):
+//   Pattern 1: "Month DDth at H:MM AM: Event Title" — all in one strong
+//   Pattern 2: "Month DDth at H:MM AM" in strong 1, title in next strong sibling
+// Date ranges like "March 23 through May 11" have no "at H:MM" → skipped.
+
 const ARDSLEY_DATE_RE = /\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2})(?:st|nd|rd|th)?\b/i;
-const ARDSLEY_TIME_RE = /\bat\s+(\d{1,2}(?::\d{2})?\s*[ap]m)/i;
+const ARDSLEY_AT_TIME_RE = /\bat\s+(\d{1,2}(?::\d{2})?\s*[ap]m)\s*:?\s*/i;
 
 function parseArdsleyDate(text) {
   const m = text.match(ARDSLEY_DATE_RE);
@@ -992,30 +997,34 @@ async function scrapeArdsley() {
     const $ = cheerio.load(html);
     $('nav, header, footer, script, style').remove();
 
-    // Each event lives in a <strong> or <b> tag inside div.paragraph or p
     $('div.paragraph, p').each((_, el) => {
       $(el).find('strong, b').each((__, strong) => {
-        // strip zero-width spaces and &nbsp;
-        const text = $(strong).text().replace(/[​ ]/g, ' ').replace(/\s+/g, ' ').trim();
+        const text = $(strong).text().replace(/\u200b|\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
         if (!text || text.length < 5) return;
+
+        // Must have date AND time pattern — skips date-range notes like 'March 23 through May 11'
         const eventDate = parseArdsleyDate(text);
         if (!eventDate) return;
+        const timeMatch = text.match(ARDSLEY_AT_TIME_RE);
+        if (!timeMatch) return;
+        const timeStr = timeMatch[1].trim();
 
-        // Title: text after the first ":" (which follows the date+time), stripped of the time phrase
-        const colonIdx = text.indexOf(':');
-        let title = colonIdx > -1 ? text.slice(colonIdx + 1).trim() : '';
-        title = title.replace(ARDSLEY_TIME_RE, '').trim();
+        // Pattern 1: 'at H:MM AM: Title' all in one strong
+        const afterTimeColon = text.match(/\bat\s+\d{1,2}(?::\d{2})?\s*[ap]m\s*:\s*(.+)/i);
+        let title = afterTimeColon ? afterTimeColon[1].trim() : '';
+
+        // Pattern 2: no colon after time — title is in the next strong sibling
         if (!title || title.length < 4) {
-          title = text.replace(ARDSLEY_DATE_RE, '').replace(ARDSLEY_TIME_RE, '').replace(/^[:\s\-–]+/, '').trim();
+          const nextStrong = $(strong).nextAll('strong, b').first();
+          title = nextStrong.text().replace(/\u200b|\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
         }
-        if (!title || title.length < 4) return;
 
-        const timeMatch = text.match(ARDSLEY_TIME_RE);
-        const timeStr   = timeMatch ? timeMatch[1].trim() : '';
+        if (!title || title.length < 4) return;
+        if (/^click here/i.test(title)) return;
+
         events.push({ date: eventDate, time: timeStr, title, url, library: 'ardsley', category });
       });
     });
-
     await sleep(300);
   }
 
@@ -1299,11 +1308,146 @@ async function scrapeRuthKeeler() {
         h = h === 0 ? 12 : h > 12 ? h - 12 : h;
         return `${h}:${String(m).padStart(2,'0')}${ap}`;
       };
-      const timeStr = endMs ? `${fmt(startMs)} – ${fmt(endMs)}` : fmt(startMs);
-      events.push({ date: new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate()), time: timeStr, title, url: '', library: 'ruth_keeler', category: 'adult' });
+      const timeStr   = endMs ? `${fmt(startMs)} – ${fmt(endMs)}` : fmt(startMs);
+      const eventUrl  = `https://tockify.com/rkmladult/detail/${e.eid.uid}/${e.eid.tid}`;
+      events.push({ date: new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate()), time: timeStr, title, url: eventUrl, library: 'ruth_keeler', category: 'adult' });
     }
     await sleep(300);
   }
+  return events;
+}
+
+
+// --- 13. Port Chester-Rye Brook Library (Upto.com embedded calendar)
+// The website embeds an Upto.com calendar (ID: S0OO). Each monthly page is
+// server-rendered HTML at upto.com/embedded/plugin/S0OO/YYYY-MM-01.
+// Events have data-duration="Day, Month DDth, H:MMam - H:MMpm" for date/time parsing.
+
+const UPTO_MONTH_MAP = {
+  January:1,February:2,March:3,April:4,May:5,June:6,
+  July:7,August:8,September:9,October:10,November:11,December:12
+};
+
+async function scrapePortChester() {
+  const cutoff = today();
+  const events  = [];
+  const months  = getMonths(3);
+  const yr      = new Date().getFullYear();
+
+  function parseUptoDuration(dur) {
+    // "Mon, April 27th, 6:30pm - 7:30pm"  or  "Fri, May 1st, All Day"
+    const m = dur.match(/,\s+([A-Za-z]+)\s+(\d{1,2})(?:st|nd|rd|th)?,\s*(.*)/);
+    if (!m) return null;
+    const monthNum = UPTO_MONTH_MAP[m[1]];
+    if (!monthNum) return null;
+    const day = parseInt(m[2]);
+    const rest = m[3].trim();
+
+    // Determine year
+    let eventDate = null;
+    for (const y of [yr, yr + 1]) {
+      const d = new Date(y, monthNum - 1, day);
+      if (d >= cutoff) { eventDate = d; break; }
+    }
+    if (!eventDate) return null;
+
+    // Parse time range from remainder: "6:30pm - 7:30pm" or "All Day"
+    const timeMatch = rest.match(/^(\d{1,2}:\d{2}(?:am|pm))\s*-\s*(\d{1,2}:\d{2}(?:am|pm))/i);
+    let timeStr = timeMatch ? `${timeMatch[1]} – ${timeMatch[2]}` : '';
+    if (!timeStr && /all.?day/i.test(rest)) timeStr = 'All day';
+
+    return { eventDate, timeStr };
+  }
+
+  for (const [year, month] of months) {
+    const url  = `https://upto.com/embedded/plugin/S0OO/${year}-${String(month).padStart(2,'0')}-01`;
+    const html = await fetchHtml(url);
+    if (!html) continue;
+    const $ = cheerio.load(html);
+
+    $('li[data-duration]').each((_, li) => {
+      const dur = $(li).attr('data-duration') || '';
+      const parsed = parseUptoDuration(dur);
+      if (!parsed) return;
+      const { eventDate, timeStr } = parsed;
+
+      // Use data-event-name for a clean title (avoids span.start-time stripping issues)
+      const title = ($(li).attr('data-event-name') || '').trim();
+      if (!title || title.length < 3) return;
+      if (/library is closed|library closed/i.test(title)) return;
+
+      const rawHref = $(li).find('a.source-1').first().attr('href') || '';
+      const url2    = rawHref.startsWith('http') ? rawHref : 'https://upto.com' + rawHref;
+
+      // Classify by title keywords — Upto.com has no audience field
+      const t = title.toLowerCase();
+      let category = 'both';
+      if (/children|child|\bkids?\b|babies|baby|toddler|preschool|storytime|story\s+time|\blego\b|puppet|\bfamily\b|families|\byouth\b|school.age|elementary/.test(t)) category = 'kids';
+      else if (/adult|senior|teen|tween|book\s*club|yoga|knitting|crochet|mahjong|mah.jong|film screen|lecture|mocktail|cocktail|\bwine\b|financial|medicare|insurance|\bcollege\b|career|\bjob\b|resume|genealog|esl|english as a|line danc/.test(t)) category = 'adult';
+
+      events.push({ date: eventDate, time: timeStr, title, url: url2, library: 'port_chester', category });
+    });
+    await sleep(400);
+  }
+
+  // Deduplicate (border events appear in adjacent monthly views)
+  const seen = new Set();
+  return events.filter(e => {
+    const k = `${e.title}|${dateKey(e.date)}`;
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+}
+
+
+// --- 14. Mount Vernon Public Library (Events Manager — no category filtering available)
+// Events are server-rendered. Date formats: "April 25, 2026" or "Jun. 1 2026 6:00pm"
+// All events tagged 'both' since no audience separation exists in the HTML.
+
+const MV_ABBR_MONTH = { Jan:1,Feb:2,Mar:3,Apr:4,May:5,Jun:6,Jul:7,Aug:8,Sep:9,Oct:10,Nov:11,Dec:12 };
+
+function parseMountVernonDate(raw) {
+  const text = raw.replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
+  // Standard format: "April 25, 2026" — handled by parseDateStr
+  let d = parseDateStr(text);
+  if (d) return d;
+  // Abbreviated format: "Jun. 1 2026" or "Jun. 1 2026 6:00pm"
+  const m = text.match(/^([A-Za-z]{3})\.?\s+(\d{1,2})\s+(\d{4})/);
+  if (m) {
+    const mn = MV_ABBR_MONTH[m[1]];
+    if (mn) return new Date(parseInt(m[3]), mn - 1, parseInt(m[2]));
+  }
+  return null;
+}
+
+async function scrapeMountVernon() {
+  const cutoff = today();
+  const events = [];
+  const html   = await fetchHtml('https://mountvernonpubliclibrary.org/events/');
+  if (!html) return events;
+
+  const $ = cheerio.load(html);
+
+  $('.em-event.em-item').each((_, el) => {
+    const $el   = $(el);
+    const titleEl = $el.find('h3.em-item-title a').first();
+    const title   = titleEl.text().trim();
+    const href    = titleEl.attr('href') || '';
+    if (!title || title.toLowerCase().includes('library is closed') || title.length < 3) return;
+
+    const dateRaw = $el.find('.em-event-date').first().text().replace(/\s+/g, ' ').trim();
+    // Multi-day: "April 19, 2026 - April 25, 2026" — take start date only
+    const dateStr  = dateRaw.split(/\s*-\s+/)[0].trim();
+    const eventDate = parseMountVernonDate(dateStr);
+    if (!eventDate || isNaN(eventDate.getTime()) || eventDate < cutoff) return;
+
+    const timeStr = $el.find('.em-event-time, .em-item-meta-line.em-event-meta-datetime').not('.em-event-date').first()
+      .text().replace(/\s+/g, ' ').trim();
+
+    events.push({ date: eventDate, time: timeStr, title, url: href, library: 'mount_vernon', category: 'both' });
+  });
+
   return events;
 }
 
@@ -1358,8 +1502,9 @@ function generateHtml(allEvents, mountKiscoMissing) {
     daysHtml += `<section class="day"><h2 class="day-hdr">${formatDate(d)}</h2>${cards}</section>\n`;
   }
 
-  // Legend — clickable filter buttons
+  // Legend — alphabetical, clickable filter buttons
   const legend = Object.entries(LIBRARIES)
+    .sort(([, a], [, b]) => a.name.localeCompare(b.name))
     .map(([key, l]) =>
       `<button class="badge filter-btn" data-lib="${key}" style="--c:${l.color}">${l.name}</button>`
     ).join('');
@@ -1372,14 +1517,14 @@ function generateHtml(allEvents, mountKiscoMissing) {
 
   const now   = new Date().toLocaleString('en-US', { weekday:'long', year:'numeric', month:'long', day:'numeric', hour:'numeric', minute:'2-digit' });
   const total = unique.length;
-  const empty = '<p class="empty">No upcoming events found. Try running the script again.</p>';
+  const empty = '<p class="empty">No upcoming events found.</p>';
 
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Kids Library Calendar</title>
+<title>Library Calendar</title>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 body {
@@ -1508,6 +1653,8 @@ a.ev-title:hover { text-decoration: underline; }
   display: flex;
   gap: 8px;
   margin-bottom: 8px;
+  flex-wrap: wrap;
+  align-items: center;
 }
 .ctrl-btn {
   font-size: .75rem;
@@ -1519,6 +1666,19 @@ a.ev-title:hover { text-decoration: underline; }
   color: #555;
 }
 .ctrl-btn:hover { background: #f0f0f0; }
+.lib-toggle-btn {
+  font-size: .75rem;
+  background: none;
+  border: 1px solid #aaa;
+  border-radius: 20px;
+  padding: 3px 12px;
+  cursor: pointer;
+  color: #333;
+  font-weight: 600;
+}
+.lib-toggle-btn:hover { background: #f0f0f0; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.legend.collapsed { display: none; }
 .event.hidden { display: none; }
 .day.hidden { display: none; }
 @media (max-width: 640px) {
@@ -1528,22 +1688,26 @@ a.ev-title:hover { text-decoration: underline; }
   .cat-btn { padding: 5px 14px; min-height: 36px; }
   .filter-btn { padding: 5px 10px; min-height: 36px; }
   .ctrl-btn { padding: 4px 10px; min-height: 32px; }
+  .lib-toggle-btn { padding: 4px 12px; min-height: 32px; }
   main { margin: 10px auto; padding: 0 10px 32px; }
   .day { margin-bottom: 10px; border-radius: 8px; }
   .day-hdr { padding: 8px 12px; font-size: .88rem; }
   .event { padding: 8px 12px; gap: 6px; }
   .ev-time { min-width: 0; width: 100%; }
   .badge { font-size: .65rem; }
+  .legend { display: none; }
+  .legend.open { display: flex; }
 }
 </style>
 </head>
 <body>
 <header>
-  <h1>Kids Library Calendar</h1>
+  <h1>Library Calendar</h1>
   <p class="meta">
-    Last updated: ${now}
-    &nbsp;·&nbsp; ${total} upcoming event${total !== 1 ? 's' : ''}
-    &nbsp;·&nbsp; <em>Run the script again to refresh</em>
+    Updated: ${now} &nbsp;·&nbsp; ${total} upcoming event${total !== 1 ? 's' : ''}
+  </p>
+  <p class="meta" style="margin-top:-8px;margin-bottom:10px;">
+    Use <strong>Kids</strong> / <strong>Adults</strong> to filter by audience. Toggle libraries on or off using the colored buttons below.
   </p>
   <div class="cat-filter">
     <button class="cat-btn active" data-cat="all">All events</button>
@@ -1551,10 +1715,11 @@ a.ev-title:hover { text-decoration: underline; }
     <button class="cat-btn" data-cat="adult">Adults</button>
   </div>
   <div class="filter-controls">
-    <button class="ctrl-btn" id="btn-all">Select all libraries</button>
-    <button class="ctrl-btn" id="btn-none">Deselect all libraries</button>
+    <button class="ctrl-btn" id="btn-all">Select all</button>
+    <button class="ctrl-btn" id="btn-none">Deselect all</button>
+    <button class="lib-toggle-btn" id="btn-toggle-libs">Libraries ▾</button>
   </div>
-  <div class="legend">${legend}</div>
+  <div class="legend" id="lib-legend">${legend}</div>
   ${warning}
 </header>
 <main>
@@ -1596,6 +1761,14 @@ document.getElementById('btn-all').addEventListener('click', () => {
 document.getElementById('btn-none').addEventListener('click', () => {
   filterBtns.forEach(b => b.classList.add('off'));
   applyFilters();
+});
+
+// Toggle library list (mobile: hidden by default, desktop: always visible)
+const libLegend   = document.getElementById('lib-legend');
+const libToggleBtn = document.getElementById('btn-toggle-libs');
+libToggleBtn.addEventListener('click', () => {
+  const isOpen = libLegend.classList.toggle('open');
+  libToggleBtn.textContent = isOpen ? 'Libraries ▴' : 'Libraries ▾';
 });
 
 document.querySelectorAll('.cat-btn').forEach(btn => {
@@ -1737,6 +1910,17 @@ async function main() {
 
   console.log('Fetching Town of Pelham Public Library...');
   { const evs = await scrapePelham(); allEvents.push(...evs); console.log(`  → ${evs.length} events`); }
+
+  // Port Chester + Mount Vernon
+  for (const [name, scraper] of [
+    ['Port Chester-Rye Brook Library', scrapePortChester],
+    ['Mount Vernon Public Library',    scrapeMountVernon],
+  ]) {
+    console.log(`Fetching ${name}...`);
+    const evs = await scraper();
+    allEvents.push(...evs);
+    console.log(`  → ${evs.length} events`);
+  }
 
   console.log(`\nTotal events: ${allEvents.length}`);
 
