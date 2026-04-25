@@ -1541,10 +1541,6 @@ header {
   background: #fff;
   border-bottom: 1px solid #e0e0e0;
   padding: 18px 24px 14px;
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  box-shadow: 0 1px 6px rgba(0,0,0,.07);
 }
 h1 { font-size: 1.55rem; font-weight: 800; letter-spacing: -.02em; margin-bottom: 4px; }
 .meta { font-size: .82rem; color: #666; margin-bottom: 12px; }
@@ -1636,10 +1632,22 @@ a.ev-title:hover { text-decoration: underline; }
   opacity: 0.3;
   text-decoration: line-through;
 }
+.filter-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.filter-label {
+  font-size: .82rem;
+  font-weight: 700;
+  color: #333;
+  white-space: nowrap;
+}
 .cat-filter {
   display: flex;
   gap: 6px;
-  margin-bottom: 8px;
 }
 .cat-btn {
   font-size: .82rem;
@@ -1656,7 +1664,6 @@ a.ev-title:hover { text-decoration: underline; }
 .filter-controls {
   display: flex;
   gap: 8px;
-  margin-bottom: 8px;
   flex-wrap: wrap;
   align-items: center;
 }
@@ -1671,7 +1678,6 @@ a.ev-title:hover { text-decoration: underline; }
 }
 .ctrl-btn:hover { background: #f0f0f0; }
 .lib-toggle-btn {
-  display: none; /* desktop: toggle not needed, legend always visible */
   font-size: .75rem;
   background: none;
   border: 1px solid #aaa;
@@ -1691,7 +1697,7 @@ a.ev-title:hover { text-decoration: underline; }
   .meta { font-size: .75rem; margin-bottom: 6px; }
   .cat-btn { padding: 5px 14px; min-height: 36px; }
   .ctrl-btn { padding: 4px 10px; min-height: 32px; }
-  .lib-toggle-btn { display: inline-block; padding: 4px 12px; min-height: 32px; }
+  .lib-toggle-btn { padding: 4px 12px; min-height: 32px; }
   main { margin: 10px auto; padding: 0 10px 32px; }
   .day { margin-bottom: 10px; border-radius: 8px; }
   .day-hdr { padding: 8px 12px; font-size: .88rem; }
@@ -1720,15 +1726,21 @@ ${GA_MEASUREMENT_ID !== 'G-XXXXXXXXXX' ? `<script async src="https://www.googlet
   <p class="meta" style="margin-top:-8px;margin-bottom:10px;">
     Use <strong>Kids</strong> / <strong>Adults</strong> to filter by audience. Toggle libraries on or off using the colored buttons below.
   </p>
-  <div class="cat-filter">
-    <button class="cat-btn active" data-cat="all">All events</button>
-    <button class="cat-btn" data-cat="kids">Kids</button>
-    <button class="cat-btn" data-cat="adult">Adults</button>
+  <div class="filter-row">
+    <span class="filter-label">Events:</span>
+    <div class="cat-filter">
+      <button class="cat-btn active" data-cat="all">All</button>
+      <button class="cat-btn" data-cat="kids">Kids</button>
+      <button class="cat-btn" data-cat="adult">Adults</button>
+    </div>
   </div>
-  <div class="filter-controls">
-    <button class="lib-toggle-btn" id="btn-toggle-libs">Libraries ▲</button>
-    <button class="ctrl-btn" id="btn-all">Select all</button>
-    <button class="ctrl-btn" id="btn-none">Deselect all</button>
+  <div class="filter-row">
+    <span class="filter-label">Libraries:</span>
+    <div class="filter-controls">
+      <button class="ctrl-btn" id="btn-all">Select All</button>
+      <button class="ctrl-btn" id="btn-none">Deselect All</button>
+      <button class="lib-toggle-btn" id="btn-toggle-libs">Hide</button>
+    </div>
   </div>
   <div class="legend" id="lib-legend">${legend}</div>
   ${warning}
@@ -1779,7 +1791,7 @@ const libLegend    = document.getElementById('lib-legend');
 const libToggleBtn = document.getElementById('btn-toggle-libs');
 libToggleBtn.addEventListener('click', () => {
   const isClosed = libLegend.classList.toggle('closed');
-  libToggleBtn.textContent = isClosed ? 'Libraries ▾' : 'Libraries ▲';
+  libToggleBtn.textContent = isClosed ? 'Show' : 'Hide';
 });
 
 document.querySelectorAll('.cat-btn').forEach(btn => {
