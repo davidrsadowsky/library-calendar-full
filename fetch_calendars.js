@@ -1545,6 +1545,7 @@ header {
 h1 { font-size: 1.55rem; font-weight: 800; letter-spacing: -.02em; margin-bottom: 4px; }
 .meta { font-size: .82rem; color: #666; margin-bottom: 12px; }
 .legend { display: flex; flex-wrap: wrap; gap: 6px; }
+.legend.closed { display: none; }
 .warn {
   margin-top: 12px;
   background: #fff8e1;
@@ -1705,7 +1706,6 @@ a.ev-title:hover { text-decoration: underline; }
   .ev-time { min-width: 0; width: 100%; }
   .badge { font-size: .65rem; }
   .legend { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-top: 6px; }
-  .legend.closed { display: none; }
   .filter-btn { font-size: .68rem; padding: 3px 8px; min-height: 0; border-radius: 6px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }
 </style>
