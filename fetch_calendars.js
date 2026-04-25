@@ -1696,9 +1696,9 @@ a.ev-title:hover { text-decoration: underline; }
   .event { padding: 8px 12px; gap: 6px; }
   .ev-time { min-width: 0; width: 100%; }
   .badge { font-size: .65rem; }
-  .filter-btn { font-size: .68rem; padding: 3px 8px; min-height: 0; border-radius: 6px; }
-  .legend { display: none; margin-top: 6px; }
-  .legend.open { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+  .legend { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-top: 6px; }
+  .legend.closed { display: none; }
+  .filter-btn { font-size: .68rem; padding: 3px 8px; min-height: 0; border-radius: 6px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }
 </style>
 </head>
@@ -1717,9 +1717,9 @@ a.ev-title:hover { text-decoration: underline; }
     <button class="cat-btn" data-cat="adult">Adults</button>
   </div>
   <div class="filter-controls">
+    <button class="lib-toggle-btn" id="btn-toggle-libs">Libraries ▲</button>
     <button class="ctrl-btn" id="btn-all">Select all</button>
     <button class="ctrl-btn" id="btn-none">Deselect all</button>
-    <button class="lib-toggle-btn" id="btn-toggle-libs">Libraries ▾</button>
   </div>
   <div class="legend" id="lib-legend">${legend}</div>
   ${warning}
@@ -1765,12 +1765,12 @@ document.getElementById('btn-none').addEventListener('click', () => {
   applyFilters();
 });
 
-// Toggle library list (mobile: hidden by default, desktop: always visible)
-const libLegend   = document.getElementById('lib-legend');
+// Toggle library list (mobile: starts open, user can collapse; desktop: always visible)
+const libLegend    = document.getElementById('lib-legend');
 const libToggleBtn = document.getElementById('btn-toggle-libs');
 libToggleBtn.addEventListener('click', () => {
-  const isOpen = libLegend.classList.toggle('open');
-  libToggleBtn.textContent = isOpen ? 'Libraries ▴' : 'Libraries ▾';
+  const isClosed = libLegend.classList.toggle('closed');
+  libToggleBtn.textContent = isClosed ? 'Libraries ▾' : 'Libraries ▲';
 });
 
 document.querySelectorAll('.cat-btn').forEach(btn => {
