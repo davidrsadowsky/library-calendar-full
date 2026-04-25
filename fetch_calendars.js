@@ -1528,7 +1528,7 @@ function generateHtml(allEvents, mountKiscoMissing) {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Westchester Library Calendar</title>
+<title>Westchester Library Events Calendar</title>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 body {
@@ -1719,7 +1719,7 @@ ${GA_MEASUREMENT_ID !== 'G-XXXXXXXXXX' ? `<script async src="https://www.googlet
 </head>
 <body>
 <header>
-  <h1>Westchester Library Calendar</h1>
+  <h1>Westchester Library Events Calendar</h1>
   <p class="meta">
     Updated: ${now} &nbsp;·&nbsp; ${total} upcoming event${total !== 1 ? 's' : ''}
   </p>
