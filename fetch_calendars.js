@@ -68,6 +68,8 @@ const LIBRARIES = {
   yonkers_crestwood:      { name: 'Yonkers Library (Crestwood)',            color: '#02c39a' },
 };
 
+const GA_MEASUREMENT_ID = 'G-XXXXXXXXXX'; // replace with your GA4 Measurement ID
+
 const FETCH_HEADERS = {
   'User-Agent':
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) ' +
@@ -1526,7 +1528,7 @@ function generateHtml(allEvents, mountKiscoMissing) {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Library Calendar</title>
+<title>Westchester Library Calendar</title>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 body {
@@ -1701,10 +1703,17 @@ a.ev-title:hover { text-decoration: underline; }
   .filter-btn { font-size: .68rem; padding: 3px 8px; min-height: 0; border-radius: 6px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }
 </style>
+${GA_MEASUREMENT_ID !== 'G-XXXXXXXXXX' ? `<script async src="https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', '${GA_MEASUREMENT_ID}');
+</script>` : ''}
 </head>
 <body>
 <header>
-  <h1>Library Calendar</h1>
+  <h1>Westchester Library Calendar</h1>
   <p class="meta">
     Updated: ${now} &nbsp;·&nbsp; ${total} upcoming event${total !== 1 ? 's' : ''}
   </p>
