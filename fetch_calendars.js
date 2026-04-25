@@ -817,9 +817,45 @@ async function scrapeMamaroneck() {
 }
 
 async function scrapeLewisboro() {
-  return scrapeTribeEvents('https://lewisborolibrary.org', 'lewisboro',
-    ['/events/category/child/'],
-    ['/events/category/adult/']);
+  const cutoff   = today();
+  const events   = [];
+  const todayStr = new Date().toISOString().slice(0, 10);
+
+  function fmt12(t) {
+    if (!t) return '';
+    const [h, m] = t.split(':').map(Number);
+    const ap = h >= 12 ? 'pm' : 'am';
+    return `${h === 0 ? 12 : h > 12 ? h - 12 : h}:${String(m).padStart(2, '0')}${ap}`;
+  }
+
+  for (const [catSlug, category] of [['child', 'kids'], ['adult', 'adult']]) {
+    try {
+      let page = 1;
+      while (true) {
+        const url = `https://lewisborolibrary.org/wp-json/tribe/events/v1/events?categories=${catSlug}&per_page=50&start_date=${todayStr}&page=${page}`;
+        const r   = await fetch(url, { headers: FETCH_HEADERS, signal: AbortSignal.timeout(20_000) });
+        if (!r.ok) break;
+        const j = await r.json();
+        if (!j.events?.length) break;
+
+        for (const e of j.events) {
+          const eventDate = new Date(e.start_date.slice(0, 10) + 'T00:00:00');
+          if (isNaN(eventDate.getTime()) || eventDate < cutoff) continue;
+          const timeStr = e.start_date.slice(11, 16)
+            ? fmt12(e.start_date.slice(11, 16)) + (e.end_date ? ' – ' + fmt12(e.end_date.slice(11, 16)) : '')
+            : '';
+          const title = e.title.replace(/&amp;/g, '&').replace(/&#(\d+);/g, (_, c) => String.fromCharCode(c));
+          events.push({ date: eventDate, time: timeStr, title, url: e.url || '', library: 'lewisboro', category });
+        }
+        if (page >= (j.total_pages || 1)) break;
+        page++;
+        await sleep(300);
+      }
+    } catch (e) {
+      console.log(`    [error] Lewisboro (${catSlug}): ${e.message}`);
+    }
+  }
+  return events;
 }
 
 async function scrapeBriarcliff() {
@@ -1533,19 +1569,25 @@ function generateHtml(allEvents, mountKiscoMissing) {
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 body {
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  background: #f0f2f5;
+  background: #eef0f3;
   color: #1a1a1a;
   min-height: 100vh;
 }
+body::before {
+  content: '';
+  display: block;
+  height: 4px;
+  background: linear-gradient(90deg, #3a86ff, #f72585, #06d6a0, #ffbe0b, #8338ec);
+}
 header {
-  background: #fff;
-  border-bottom: 1px solid #e0e0e0;
+  background: #fafaf8;
+  border-bottom: 1px solid #d8d8d8;
   padding: 18px 24px 14px;
 }
-h1 { font-size: 1.55rem; font-weight: 800; letter-spacing: -.02em; margin-bottom: 4px; }
+h1 { font-size: 1.55rem; font-weight: 800; letter-spacing: -.02em; margin-bottom: 4px; color: #1d3461; }
 .meta { font-size: .82rem; color: #666; margin-bottom: 12px; }
-.legend { display: flex; flex-wrap: wrap; gap: 6px; }
-.legend.closed { display: none; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.legend.closed { display: none !important; }
 .warn {
   margin-top: 12px;
   background: #fff8e1;
@@ -1571,15 +1613,16 @@ main {
   border-radius: 12px;
   margin-bottom: 14px;
   overflow: hidden;
-  box-shadow: 0 1px 4px rgba(0,0,0,.08);
+  box-shadow: 0 2px 8px rgba(0,0,0,.09);
 }
 .day-hdr {
   font-size: .93rem;
   font-weight: 700;
   padding: 10px 16px;
-  background: #f8f8f8;
+  background: #f4f4f2;
   border-bottom: 1px solid #ececec;
-  color: #333;
+  border-left: 4px solid #3a86ff;
+  color: #1d3461;
 }
 .event {
   display: flex;
@@ -1590,6 +1633,7 @@ main {
   flex-wrap: wrap;
 }
 .event:last-child { border-bottom: none; }
+.event:hover { background: #f9f9f9; }
 .ev-time {
   font-size: .8rem;
   color: #555;
@@ -1689,7 +1733,6 @@ a.ev-title:hover { text-decoration: underline; }
   font-weight: 600;
 }
 .lib-toggle-btn:hover { background: #f0f0f0; }
-.legend { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .event.hidden { display: none; }
 .day.hidden { display: none; }
 @media (max-width: 640px) {
