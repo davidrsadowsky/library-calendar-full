@@ -1566,6 +1566,8 @@ function generateHtml(allEvents, mountKiscoMissing, preselect = null) {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect x='1' y='5' width='30' height='26' rx='3' fill='white' stroke='%231d3461' stroke-width='2'/><rect x='1' y='5' width='30' height='9' rx='3' fill='%231d3461'/><rect x='1' y='11' width='30' height='3' fill='%231d3461'/><rect x='8' y='2' width='3.5' height='7' rx='1.75' fill='%233a86ff'/><rect x='20.5' y='2' width='3.5' height='7' rx='1.75' fill='%233a86ff'/><text x='16' y='27' font-family='Arial,sans-serif' font-size='13' font-weight='900' fill='%231d3461' text-anchor='middle'>W</text></svg>">
 <title>Westchester Library Events</title>
+<meta name="description" content="Upcoming events at Westchester County public libraries, updated daily. Filter by one or more libraries and by age group — kids, adults, or all — to create your own custom list of events.">
+<link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect x='1' y='5' width='30' height='26' rx='3' fill='white' stroke='%231d3461' stroke-width='2'/><rect x='1' y='5' width='30' height='9' rx='3' fill='%231d3461'/><rect x='1' y='11' width='30' height='3' fill='%231d3461'/><rect x='8' y='2' width='3.5' height='7' rx='1.75' fill='%233a86ff'/><rect x='20.5' y='2' width='3.5' height='7' rx='1.75' fill='%233a86ff'/><text x='16' y='27' font-family='Arial,sans-serif' font-size='13' font-weight='900' fill='%231d3461' text-anchor='middle'>W</text></svg>">
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 body {
