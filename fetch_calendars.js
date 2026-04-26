@@ -2001,7 +2001,7 @@ async function main() {
   console.log(`Calendar saved → ${outputPath}`);
 
   const lisaPath = path.join(__dirname, 'lisa.html');
-  fs.writeFileSync(lisaPath, generateHtml(allEvents, false, ['bedford', 'bedford_hills', 'katonah', 'pound_ridge', 'mount_kisco', 'chappaqua', 'mount_pleasant']), 'utf8');
+  fs.writeFileSync(lisaPath, generateHtml(allEvents, false, ['bedford_free', 'bedford_hills', 'katonah', 'pound_ridge', 'mount_kisco', 'chappaqua', 'mount_pleasant']), 'utf8');
   console.log(`Lisa page saved → ${lisaPath}`);
 
   try {
