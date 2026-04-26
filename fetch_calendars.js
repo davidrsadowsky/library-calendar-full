@@ -1557,7 +1557,7 @@ function generateHtml(allEvents, mountKiscoMissing, preselect = null) {
        <code>npm install playwright &amp;&amp; npx playwright install chromium</code></div>`
     : '';
 
-  const now   = new Date().toLocaleString('en-US', { weekday:'long', year:'numeric', month:'long', day:'numeric', hour:'numeric', minute:'2-digit' });
+  const now   = new Date().toLocaleString('en-US', { weekday:'long', year:'numeric', month:'long', day:'numeric', hour:'numeric', minute:'2-digit', timeZone:'America/New_York' });
   const total = unique.length;
   const empty = '<p class="empty">No upcoming events found.</p>';
 
