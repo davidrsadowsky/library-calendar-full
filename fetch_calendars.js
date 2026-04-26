@@ -1765,7 +1765,7 @@ ${GA_MEASUREMENT_ID !== 'G-XXXXXXXXXX' ? `<script async src="https://www.googlet
 <header>
   <h1>Westchester Library Events</h1>
   <p class="meta">
-    Updated: ${now} &nbsp;·&nbsp; ${total} upcoming event${total !== 1 ? 's' : ''}
+    Updated: ${now} &nbsp;·&nbsp; ${total} upcoming event${total !== 1 ? 's' : ''} &nbsp;·&nbsp; Contact: <a href="mailto:admin@westchesterlibraryevents.com" style="color:inherit">admin@westchesterlibraryevents.com</a> &nbsp;·&nbsp; <a href="/privacy.html" style="color:inherit">Privacy Policy</a>
   </p>
   <div class="filter-row">
     <span class="filter-label">Events:</span>
@@ -1814,6 +1814,10 @@ filterBtns.forEach(btn => {
   btn.addEventListener('click', () => {
     btn.classList.toggle('off');
     applyFilters();
+    if (typeof gtag !== 'undefined') gtag('event', 'library_filter', {
+      library: btn.dataset.lib,
+      action: btn.classList.contains('off') ? 'deselect' : 'select'
+    });
   });
 });
 
@@ -1841,6 +1845,7 @@ document.querySelectorAll('.cat-btn').forEach(btn => {
     btn.classList.add('active');
     catMode = btn.dataset.cat;
     applyFilters();
+    if (typeof gtag !== 'undefined') gtag('event', 'audience_filter', { audience: btn.dataset.cat });
   });
 });
 ${preselect ? `
@@ -1860,6 +1865,57 @@ ${preselect ? `
 // ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
+
+function generatePrivacyHtml() {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy Policy — Westchester Library Events</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #eef0f3; color: #1a1a1a; min-height: 100vh; }
+body::before { content: ''; display: block; height: 4px; background: linear-gradient(90deg, #3a86ff, #f72585, #06d6a0, #ffbe0b, #8338ec); }
+header { background: #fafaf8; border-bottom: 1px solid #d8d8d8; padding: 18px 24px 14px; }
+h1 { font-size: 1.55rem; font-weight: 800; letter-spacing: -.02em; margin-bottom: 4px; color: #1d3461; }
+.back { font-size: .82rem; color: #666; text-decoration: none; }
+.back:hover { text-decoration: underline; }
+main { max-width: 740px; margin: 24px auto; padding: 0 16px 48px; }
+.card { background: #fff; border-radius: 12px; padding: 24px 28px; box-shadow: 0 2px 8px rgba(0,0,0,.09); }
+h2 { font-size: 1.1rem; font-weight: 700; color: #1d3461; margin: 20px 0 8px; }
+h2:first-child { margin-top: 0; }
+p { font-size: .92rem; line-height: 1.65; color: #333; margin-bottom: 8px; }
+a { color: #3a86ff; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Westchester Library Events</h1>
+  <a class="back" href="/">← Back to calendar</a>
+</header>
+<main>
+  <div class="card">
+    <h2>Privacy Policy</h2>
+    <p>This site is a free community resource listing public events at Westchester County libraries. We do not collect, store, or sell any personal information.</p>
+
+    <h2>Google Analytics</h2>
+    <p>We use Google Analytics to understand how visitors use this site. Google Analytics collects anonymous data such as pages visited, time spent on the site, general geographic region (country/state level), device type, and how you arrived at the site. Your IP address is anonymized and no personally identifiable information is collected.</p>
+    <p>You can opt out of Google Analytics tracking by installing the <a href="https://tools.google.com/dlpage/gaoptout" target="_blank">Google Analytics Opt-out Browser Add-on</a>.</p>
+
+    <h2>Cookies</h2>
+    <p>Google Analytics uses cookies to distinguish visitors. We do not use any other cookies on this site.</p>
+
+    <h2>Third-Party Links</h2>
+    <p>Event links on this site point to individual library websites. We are not responsible for the privacy practices of those sites.</p>
+
+    <h2>Contact</h2>
+    <p>Questions about this policy? Email <a href="mailto:admin@westchesterlibraryevents.com">admin@westchesterlibraryevents.com</a>.</p>
+  </div>
+</main>
+</body>
+</html>`;
+}
 
 async function main() {
   const months    = getMonths(3);
@@ -2003,6 +2059,10 @@ async function main() {
   const lisaPath = path.join(__dirname, 'lisa.html');
   fs.writeFileSync(lisaPath, generateHtml(allEvents, false, ['bedford_free', 'bedford_hills', 'katonah', 'pound_ridge', 'mount_kisco', 'chappaqua', 'mount_pleasant']), 'utf8');
   console.log(`Lisa page saved → ${lisaPath}`);
+
+  const privacyPath = path.join(__dirname, 'privacy.html');
+  fs.writeFileSync(privacyPath, generatePrivacyHtml(), 'utf8');
+  console.log(`Privacy page saved → ${privacyPath}`);
 
   try {
     execSync(`open "${outputPath}"`);
