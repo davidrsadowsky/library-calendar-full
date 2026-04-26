@@ -68,7 +68,7 @@ const LIBRARIES = {
   yonkers_crestwood:      { name: 'Yonkers Library (Crestwood)',            color: '#02c39a' },
 };
 
-const GA_MEASUREMENT_ID = 'G-XXXXXXXXXX'; // replace with your GA4 Measurement ID
+const GA_MEASUREMENT_ID = 'G-SFW77F51MG';
 
 const FETCH_HEADERS = {
   'User-Agent':
@@ -1495,7 +1495,7 @@ async function scrapeMountVernon() {
 // HTML generation
 // ---------------------------------------------------------------------------
 
-function generateHtml(allEvents, mountKiscoMissing) {
+function generateHtml(allEvents, mountKiscoMissing, preselect = null) {
   // Deduplicate — if same event appears in both kids and adult fetch, mark as 'both'
   const eventMap = new Map();
   for (const e of allEvents) {
@@ -1564,7 +1564,7 @@ function generateHtml(allEvents, mountKiscoMissing) {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Westchester Library Events Calendar</title>
+<title>Westchester Library Events</title>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 body {
@@ -1763,12 +1763,9 @@ ${GA_MEASUREMENT_ID !== 'G-XXXXXXXXXX' ? `<script async src="https://www.googlet
 </head>
 <body>
 <header>
-  <h1>Westchester Library Events Calendar</h1>
+  <h1>Westchester Library Events</h1>
   <p class="meta">
     Updated: ${now} &nbsp;·&nbsp; ${total} upcoming event${total !== 1 ? 's' : ''}
-  </p>
-  <p class="meta" style="margin-top:-8px;margin-bottom:10px;">
-    Use <strong>Kids</strong> / <strong>Adults</strong> to filter by audience. Toggle libraries on or off using the buttons below.
   </p>
   <div class="filter-row">
     <span class="filter-label">Events:</span>
@@ -1846,6 +1843,14 @@ document.querySelectorAll('.cat-btn').forEach(btn => {
     applyFilters();
   });
 });
+${preselect ? `
+(function() {
+  const keep = new Set(${JSON.stringify(preselect)});
+  document.querySelectorAll('.filter-btn').forEach(btn => {
+    if (!keep.has(btn.dataset.lib)) btn.classList.add('off');
+  });
+  applyFilters();
+})();` : ''}
 </script>
 </body>
 </html>`;
@@ -1994,6 +1999,10 @@ async function main() {
   const outputPath = path.join(__dirname, 'index.html');
   fs.writeFileSync(outputPath, generateHtml(allEvents, mountKiscoMissing), 'utf8');
   console.log(`Calendar saved → ${outputPath}`);
+
+  const lisaPath = path.join(__dirname, 'lisa.html');
+  fs.writeFileSync(lisaPath, generateHtml(allEvents, false, ['bedford', 'bedford_hills', 'katonah', 'pound_ridge', 'mount_kisco', 'chappaqua', 'mount_pleasant']), 'utf8');
+  console.log(`Lisa page saved → ${lisaPath}`);
 
   try {
     execSync(`open "${outputPath}"`);
