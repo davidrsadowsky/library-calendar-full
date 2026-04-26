@@ -1286,13 +1286,15 @@ async function scrapeHastings() {
       if (isNaN(eventDate.getTime()) || eventDate < cutoff) return;
 
       const startTime = dateContent.slice(11, 16);
+      const endContent = $el.find('.simcal-event-end-time').first().attr('content') || '';
+      const endTime = endContent.slice(11, 16);
       const fmt12 = t => {
         if (!t || t === '00:00') return '';
         const [h, m] = t.split(':').map(Number);
         const ap = h >= 12 ? 'pm' : 'am';
         return `${h === 0 ? 12 : h > 12 ? h - 12 : h}:${String(m).padStart(2, '0')}${ap}`;
       };
-      const timeStr = fmt12(startTime);
+      const timeStr = endTime ? `${fmt12(startTime)} – ${fmt12(endTime)}` : fmt12(startTime);
 
       const gcalLink = $el.find('a[href*="google.com/calendar/event"]').attr('href') || '';
       events.push({ date: eventDate, time: timeStr, title, url: gcalLink, library: 'hastings', category: 'both' });
