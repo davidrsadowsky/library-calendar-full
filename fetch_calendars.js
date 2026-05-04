@@ -811,9 +811,45 @@ async function scrapeTribeEvents(baseUrl, libraryKey, kidsSlugs, adultSlugs) {
 }
 
 async function scrapeMamaroneck() {
-  return scrapeTribeEvents('https://www.mamaronecklibrary.org', 'mamaroneck',
-    ['/events/category/children/list'],
-    ['/events/category/adult/list']);
+  const cutoff   = today();
+  const events   = [];
+  const todayStr = new Date().toISOString().slice(0, 10);
+
+  function fmt12(t) {
+    if (!t) return '';
+    const [h, m] = t.split(':').map(Number);
+    const ap = h >= 12 ? 'pm' : 'am';
+    return `${h === 0 ? 12 : h > 12 ? h - 12 : h}:${String(m).padStart(2, '0')}${ap}`;
+  }
+
+  for (const [catSlug, category] of [['children', 'kids'], ['adult', 'adult']]) {
+    try {
+      let page = 1;
+      while (true) {
+        const url = `https://www.mamaronecklibrary.org/wp-json/tribe/events/v1/events?categories=${catSlug}&per_page=50&start_date=${todayStr}&page=${page}`;
+        const r   = await fetch(url, { headers: FETCH_HEADERS, signal: AbortSignal.timeout(20_000) });
+        if (!r.ok) break;
+        const j = await r.json();
+        if (!j.events?.length) break;
+
+        for (const e of j.events) {
+          const eventDate = new Date(e.start_date.slice(0, 10) + 'T00:00:00');
+          if (isNaN(eventDate.getTime()) || eventDate < cutoff) continue;
+          const timeStr = e.start_date.slice(11, 16)
+            ? fmt12(e.start_date.slice(11, 16)) + (e.end_date ? ' – ' + fmt12(e.end_date.slice(11, 16)) : '')
+            : '';
+          const title = e.title.replace(/&amp;/g, '&').replace(/&#(\d+);/g, (_, c) => String.fromCharCode(c));
+          events.push({ date: eventDate, time: timeStr, title, url: e.url || '', library: 'mamaroneck', category });
+        }
+        if (page >= (j.total_pages || 1)) break;
+        page++;
+        await sleep(300);
+      }
+    } catch (e) {
+      console.log(`    [error] Mamaroneck (${catSlug}): ${e.message}`);
+    }
+  }
+  return events;
 }
 
 async function scrapeLewisboro() {
