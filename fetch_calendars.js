@@ -1528,14 +1528,14 @@ async function scrapeMountVernon() {
     if (events.length > 0) return events;
   }
 
-  // Fall back to Playwright if fetch returned nothing useful
-  let playwright;
-  try { playwright = require('playwright'); } catch (_) { return events; }
+  // Fall back to Playwright with stealth if fetch returned nothing useful
   try {
-    const browser = await playwright.chromium.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+    const { chromium } = require('playwright-extra');
+    const stealth = require('puppeteer-extra-plugin-stealth');
+    chromium.use(stealth());
+    const browser = await chromium.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
     const page = await browser.newPage();
-    await page.goto('https://mountvernonpubliclibrary.org/events/', { timeout: 30_000 });
-    await page.waitForTimeout(2_000);
+    await page.goto('https://mountvernonpubliclibrary.org/events/', { timeout: 30_000, waitUntil: 'networkidle' });
     const pwHtml = await page.content();
     await browser.close();
     if (pwHtml && pwHtml.length > 100) parseHtml(pwHtml);
