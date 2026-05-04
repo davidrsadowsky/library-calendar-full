@@ -56,7 +56,7 @@ const LIBRARIES = {
   ossining:               { name: 'Ossining Public Library',                 color: '#9d4edd' },
   pelham:                 { name: 'Town of Pelham Public Library',           color: '#ffbe0b' },
   port_chester:           { name: 'Port Chester-Rye Brook Library',          color: '#52b788' },
-  ruth_keeler:            { name: 'Ruth Keeler Memorial Library',            color: '#7209b7' },
+  ruth_keeler:            { name: 'Ruth Keeler Memorial Library (North Salem)', color: '#7209b7' },
   rye:                    { name: 'Rye Free Reading Room',                   color: '#3a0ca3' },
   scarsdale:              { name: 'Scarsdale Public Library',                color: '#4361ee' },
   tuckahoe:               { name: 'Tuckahoe Public Library',                 color: '#f77f00' },
@@ -1502,30 +1502,39 @@ function parseMountVernonDate(raw) {
 async function scrapeMountVernon() {
   const cutoff = today();
   const events = [];
-  const html   = await fetchHtml('https://mountvernonpubliclibrary.org/events/');
-  if (!html) return events;
+  let playwright;
+  try { playwright = require('playwright'); } catch (_) { return events; }
 
-  const $ = cheerio.load(html);
+  try {
+    const browser = await playwright.chromium.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+    const page = await browser.newPage();
+    await page.goto('https://mountvernonpubliclibrary.org/events/', { timeout: 30_000 });
+    await page.waitForTimeout(2_000);
 
-  $('.em-event.em-item').each((_, el) => {
-    const $el   = $(el);
-    const titleEl = $el.find('h3.em-item-title a').first();
-    const title   = titleEl.text().trim();
-    const href    = titleEl.attr('href') || '';
-    if (!title || title.toLowerCase().includes('library is closed') || title.length < 3) return;
+    const html = await page.content();
+    await browser.close();
 
-    const dateRaw = $el.find('.em-event-date').first().text().replace(/\s+/g, ' ').trim();
-    // Multi-day: "April 19, 2026 - April 25, 2026" — take start date only
-    const dateStr  = dateRaw.split(/\s*-\s+/)[0].trim();
-    const eventDate = parseMountVernonDate(dateStr);
-    if (!eventDate || isNaN(eventDate.getTime()) || eventDate < cutoff) return;
+    const $ = cheerio.load(html);
+    $('.em-event.em-item').each((_, el) => {
+      const $el    = $(el);
+      const titleEl = $el.find('h3.em-item-title a').first();
+      const title   = titleEl.text().trim();
+      const href    = titleEl.attr('href') || '';
+      if (!title || title.toLowerCase().includes('library is closed') || title.length < 3) return;
 
-    const timeStr = $el.find('.em-event-time, .em-item-meta-line.em-event-meta-datetime').not('.em-event-date').first()
-      .text().replace(/\s+/g, ' ').trim();
+      const dateRaw  = $el.find('.em-event-date').first().text().replace(/\s+/g, ' ').trim();
+      const dateStr  = dateRaw.split(/\s*-\s+/)[0].trim();
+      const eventDate = parseMountVernonDate(dateStr);
+      if (!eventDate || isNaN(eventDate.getTime()) || eventDate < cutoff) return;
 
-    events.push({ date: eventDate, time: timeStr, title, url: href, library: 'mount_vernon', category: 'both' });
-  });
+      const timeStr = $el.find('.em-event-time, .em-item-meta-line.em-event-meta-datetime').not('.em-event-date').first()
+        .text().replace(/\s+/g, ' ').trim();
 
+      events.push({ date: eventDate, time: timeStr, title, url: href, library: 'mount_vernon', category: 'both' });
+    });
+  } catch (e) {
+    console.log(`    [error] Mount Vernon: ${e.message}`);
+  }
   return events;
 }
 
