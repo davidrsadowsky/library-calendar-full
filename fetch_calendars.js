@@ -1528,20 +1528,6 @@ async function scrapeMountVernon() {
     if (events.length > 0) return events;
   }
 
-  // Fall back to Playwright with stealth if fetch returned nothing useful
-  try {
-    const { chromium } = require('playwright-extra');
-    const stealth = require('puppeteer-extra-plugin-stealth');
-    chromium.use(stealth());
-    const browser = await chromium.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
-    const page = await browser.newPage();
-    await page.goto('https://mountvernonpubliclibrary.org/events/', { timeout: 30_000, waitUntil: 'networkidle' });
-    const pwHtml = await page.content();
-    await browser.close();
-    if (pwHtml && pwHtml.length > 100) parseHtml(pwHtml);
-  } catch (e) {
-    console.log(`    [error] Mount Vernon: ${e.message}`);
-  }
   return events;
 }
 
@@ -1593,7 +1579,7 @@ function generateHtml(allEvents, mountKiscoMissing, preselect = null) {
         : `<span class="ev-title">${e.title}</span>`;
       cards += `<div class="event" data-lib="${e.library}" data-cat="${e.category || 'kids'}">${timeHtml}${titleHtml}<span class="badge" style="--c:${lib.color}">${lib.name}</span></div>\n`;
     }
-    daysHtml += `<section class="day"><h2 class="day-hdr">${formatDate(d)}</h2>${cards}</section>\n`;
+    daysHtml += `<section class="day" data-date="${dateKey(d)}"><h2 class="day-hdr">${formatDate(d)}</h2>${cards}</section>\n`;
   }
 
   // Legend — alphabetical, clickable filter buttons
@@ -1905,6 +1891,14 @@ document.querySelectorAll('.cat-btn').forEach(btn => {
     if (typeof gtag !== 'undefined') gtag('event', 'audience_filter', { audience: btn.dataset.cat });
   });
 });
+// Hide any day sections that are now in the past (guards against stale HTML)
+(function() {
+  const today = new Date().toISOString().slice(0, 10);
+  document.querySelectorAll('.day[data-date]').forEach(sec => {
+    if (sec.dataset.date < today) sec.classList.add('hidden');
+  });
+  updateDays();
+})();
 ${preselect ? `
 (function() {
   const keep = new Set(${JSON.stringify(preselect)});
