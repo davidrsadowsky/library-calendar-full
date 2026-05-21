@@ -1510,15 +1510,38 @@ async function scrapeMountVernon() {
   const events = [];
   const seen   = new Set();
 
+  // Step 1: scrape events page to get title+date+url+category from section headings
+  const categoryMap = new Map(); // key: "title|YYYY-MM-DD" → category
+  const html = await fetchHtml('https://mountvernonpubliclibrary.org/events/');
+  if (html && html.length > 100) {
+    const $ = cheerio.load(html);
+    $('li.widget').each((_, widget) => {
+      const heading = $(widget).find('h3.widgettitle').text().trim().toLowerCase();
+      let category = 'adult';
+      if (/kids|children|teen|tween|youth/.test(heading)) category = 'kids';
+
+      $(widget).find('.em-item.em-event').each((_, el) => {
+        const $el     = $(el);
+        const titleEl = $el.find('.em-item-name a, h3.em-item-title a').first();
+        const title   = titleEl.text().trim();
+        const dateRaw = $el.find('.em-event-date span:not(.em-icon)').first().text().replace(/\s+/g, ' ').trim();
+        const eventDate = parseMountVernonDate(dateRaw.split(/\s*-\s+/)[0].trim());
+        if (!title || !eventDate || isNaN(eventDate.getTime())) return;
+        categoryMap.set(`${title}|${dateKey(eventDate)}`, category);
+      });
+    });
+  }
+
+  // Step 2: RSS feed for times (and fallback category via description)
   const xml = await fetchHtml('https://mountvernonpubliclibrary.org/?post_type=event&feed=ical');
   if (!xml || xml.length < 100) return events;
 
-  const $ = cheerio.load(xml, { xmlMode: true });
-  $('item').each((_, el) => {
-    const title = $(el).find('title').text().trim();
-    const url   = $(el).find('link').text().trim();
-    const desc  = $(el).find('description').text();
-    if (!title || title.length < 3) return;
+  const $x = cheerio.load(xml, { xmlMode: true });
+  $x('item').each((_, el) => {
+    const title = $x(el).find('title').text().trim();
+    const url   = $x(el).find('link').text().trim();
+    const desc  = $x(el).find('description').text();
+    if (!title || title.length < 3 || /library.+closed|closed.+library/i.test(title)) return;
 
     const dateMatch = desc.match(/([A-Za-z]+ \d{1,2}, \d{4})/);
     if (!dateMatch) return;
@@ -1532,12 +1555,10 @@ async function scrapeMountVernon() {
     if (seen.has(key)) return;
     seen.add(key);
 
-    const lowerDesc  = desc.toLowerCase();
-    const lowerTitle = title.toLowerCase();
-    let category = 'adult';
-    if (lowerDesc.includes("children") || lowerDesc.includes("children&#039;s") ||
-        /child|kid|baby|babies|toddler|preschool|storytime|story.time|junior|teen|tween|youth/i.test(lowerTitle)) {
-      category = 'kids';
+    // Use section-heading category if available, otherwise fall back to keywords
+    let category = categoryMap.get(key) || 'adult';
+    if (!categoryMap.has(key)) {
+      if (/child|kid|baby|toddler|preschool|storytime|story.time|puppet|teen|tween|youth/i.test(title)) category = 'kids';
     }
 
     events.push({ date: eventDate, time: timeStr, title, url, library: 'mount_vernon', category });
