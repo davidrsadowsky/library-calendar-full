@@ -1555,10 +1555,12 @@ async function scrapeMountVernon() {
     if (seen.has(key)) return;
     seen.add(key);
 
-    // Use section-heading category if available, otherwise fall back to keywords
-    let category = categoryMap.get(key) || 'adult';
-    if (!categoryMap.has(key)) {
+    // Use section-heading category if available, otherwise fall back to keywords then 'both'
+    let category = categoryMap.get(key);
+    if (!category) {
       if (/child|kid|baby|toddler|preschool|storytime|story.time|puppet|teen|tween|youth/i.test(title)) category = 'kids';
+      else if (/adult|senior|citizenship|genealog|book.club|computer/i.test(title)) category = 'adult';
+      else category = 'both';
     }
 
     events.push({ date: eventDate, time: timeStr, title, url, library: 'mount_vernon', category });
