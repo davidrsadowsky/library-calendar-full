@@ -625,8 +625,8 @@ async function scrapeMountKisco(year, month) {
       result.kids = []; result.adult = [];
       for (const opt of select.options) {
         const t = opt.text.toLowerCase();
-        if (t.includes('kids') || t.includes('family')) result.kids.push(`cat${opt.value}`);
-        else if (t.includes('adult') || t.includes('teen')) result.adult.push(`cat${opt.value}`);
+        if (/kids|family|child|teen|tween|baby|toddler|preschool|youth/.test(t)) result.kids.push(`cat${opt.value}`);
+        else if (t.includes('adult')) result.adult.push(`cat${opt.value}`);
       }
       return result;
     });
@@ -724,14 +724,14 @@ async function scrapeLibCalAjax(subdomain, calId, libraryKey) {
       const catStr   = (e.categories || '').toLowerCase();
       let category   = 'both';
       if (audNames.length) {
-        const hasKids  = audNames.some(a => /child|kid|family|baby|toddler|preschool/.test(a));
-        const hasAdult = audNames.some(a => /adult|senior|teen|tween/.test(a));
+        const hasKids  = audNames.some(a => /child|kid|family|baby|toddler|preschool|teen|tween|youth/.test(a));
+        const hasAdult = audNames.some(a => /adult|senior/.test(a));
         if (hasKids && !hasAdult)  category = 'kids';
         else if (!hasKids && hasAdult) category = 'adult';
         else category = 'both';
       } else if (catStr) {
-        if (/child|kid|family|baby|toddler|preschool|school.age/.test(catStr)) category = 'kids';
-        else if (/adult|senior|teen|tween|book.club|film/.test(catStr))         category = 'adult';
+        if (/child|kid|family|baby|toddler|preschool|school.age|teen|tween|youth/.test(catStr)) category = 'kids';
+        else if (/adult|senior|book.club|film/.test(catStr))                                    category = 'adult';
       }
 
       const timeStr = e.start && e.end ? `${e.start} – ${e.end}` : (e.start || '');
@@ -920,8 +920,8 @@ async function scrapeBriarcliff() {
         const cats = (e.categories || []).map(c => c.name.toLowerCase());
         if (cats.some(c => c.includes('board'))) continue;
         let category = 'both';
-        if (cats.some(c => /child|famil|kid/.test(c))) category = 'kids';
-        else if (cats.some(c => /adult|teen|senior/.test(c))) category = 'adult';
+        if (cats.some(c => /child|famil|kid|teen|tween|youth/.test(c))) category = 'kids';
+        else if (cats.some(c => /adult|senior/.test(c))) category = 'adult';
 
         const eventDate = new Date(e.start_date.slice(0, 10) + 'T00:00:00');
         if (isNaN(eventDate.getTime()) || eventDate < cutoff) continue;
@@ -983,8 +983,8 @@ async function scrapeDobbsFerry() {
 
       const catText = $el.find('.em-event-categories a').map((_, a) => $(a).text().toLowerCase()).get().join(' ');
       let category = 'both';
-      if (/child|kid|preschool|family|baby|elementary|toddler|school age|youth/.test(catText)) category = 'kids';
-      else if (/^adult|adult$|senior|teen|tween|book group|film/.test(catText)) category = 'adult';
+      if (/child|kid|preschool|family|baby|elementary|toddler|school age|youth|teen|tween/.test(catText)) category = 'kids';
+      else if (/^adult|adult$|senior|book group|film/.test(catText)) category = 'adult';
       else if (catText.includes('all ages')) category = 'both';
 
       events.push({ date: eventDate, time: timeStr, title, url: href, library: 'dobbs_ferry', category });
@@ -1061,7 +1061,7 @@ function parseArdsleyDate(text) {
 async function scrapeArdsley() {
   const pages = [
     ['https://www.ardsleypubliclibrary.org/adults.html',          'adult'],
-    ['https://www.ardsleypubliclibrary.org/teen-scene.html',      'adult'],
+    ['https://www.ardsleypubliclibrary.org/teen-scene.html',      'kids'],
     ['https://www.ardsleypubliclibrary.org/preschool-place.html', 'kids'],
     ['https://www.ardsleypubliclibrary.org/school-age-kids.html', 'kids'],
   ];
@@ -1196,8 +1196,8 @@ async function scrapeFieldLibrary() {
       for (const e of j.events) {
         const cats = (e.categories || []).map(c => c.name.toLowerCase());
         let category = 'both';
-        if (cats.some(c => /child|famil|kid/.test(c))) category = 'kids';
-        else if (cats.some(c => /adult|senior|teen/.test(c))) category = 'adult';
+        if (cats.some(c => /child|famil|kid|teen|tween|youth/.test(c))) category = 'kids';
+        else if (cats.some(c => /adult|senior/.test(c))) category = 'adult';
 
         const eventDate = new Date(e.start_date.slice(0, 10) + 'T00:00:00');
         if (isNaN(eventDate.getTime()) || eventDate < cutoff) continue;
@@ -1460,8 +1460,8 @@ async function scrapePortChester() {
       // Classify by title keywords — Upto.com has no audience field
       const t = title.toLowerCase();
       let category = 'both';
-      if (/children|child|\bkids?\b|babies|baby|toddler|preschool|storytime|story\s+time|\blego\b|puppet|\bfamily\b|families|\byouth\b|school.age|elementary/.test(t)) category = 'kids';
-      else if (/adult|senior|teen|tween|book\s*club|yoga|knitting|crochet|mahjong|mah.jong|film screen|lecture|mocktail|cocktail|\bwine\b|financial|medicare|insurance|\bcollege\b|career|\bjob\b|resume|genealog|esl|english as a|line danc/.test(t)) category = 'adult';
+      if (/children|child|\bkids?\b|babies|baby|toddler|preschool|storytime|story\s+time|\blego\b|puppet|\bfamily\b|families|\byouth\b|school.age|elementary|teen|tween/.test(t)) category = 'kids';
+      else if (/adult|senior|book\s*club|yoga|knitting|crochet|mahjong|mah.jong|film screen|lecture|mocktail|cocktail|\bwine\b|financial|medicare|insurance|\bcollege\b|career|\bjob\b|resume|genealog|esl|english as a|line danc/.test(t)) category = 'adult';
 
       events.push({ date: eventDate, time: timeStr, title, url: url2, library: 'port_chester', category });
     });
@@ -1532,7 +1532,15 @@ async function scrapeMountVernon() {
     if (seen.has(key)) return;
     seen.add(key);
 
-    events.push({ date: eventDate, time: timeStr, title, url, library: 'mount_vernon', category: 'both' });
+    const lowerDesc  = desc.toLowerCase();
+    const lowerTitle = title.toLowerCase();
+    let category = 'adult';
+    if (lowerDesc.includes("children") || lowerDesc.includes("children&#039;s") ||
+        /child|kid|baby|babies|toddler|preschool|storytime|story.time|junior|teen|tween|youth/i.test(lowerTitle)) {
+      category = 'kids';
+    }
+
+    events.push({ date: eventDate, time: timeStr, title, url, library: 'mount_vernon', category });
   });
 
   return events;
