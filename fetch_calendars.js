@@ -1508,31 +1508,32 @@ function parseMountVernonDate(raw) {
 async function scrapeMountVernon() {
   const cutoff = today();
   const events = [];
+  const seen   = new Set();
 
-  function parseHtml(html) {
-    const $ = cheerio.load(html);
-    $('.em-event.em-item').each((_, el) => {
-      const $el     = $(el);
-      const titleEl = $el.find('.em-item-name a, h3.em-item-title a').first();
-      const title   = titleEl.text().trim();
-      const href    = titleEl.attr('href') || '';
-      if (!title || title.toLowerCase().includes('library is closed') || title.length < 3) return;
-      const dateRaw   = $el.find('.em-event-date span:not(.em-icon)').first().text().replace(/\s+/g, ' ').trim();
-      const dateStr   = dateRaw.split(/\s*-\s+/)[0].trim();
-      const eventDate = parseMountVernonDate(dateStr);
-      if (!eventDate || isNaN(eventDate.getTime()) || eventDate < cutoff) return;
-      const timeStr = $el.find('.em-event-time, .em-item-meta-line.em-event-meta-datetime').not('.em-event-date').first()
-        .text().replace(/\s+/g, ' ').trim();
-      events.push({ date: eventDate, time: timeStr, title, url: href, library: 'mount_vernon', category: 'both' });
-    });
-  }
+  const xml = await fetchHtml('https://mountvernonpubliclibrary.org/?post_type=event&feed=ical');
+  if (!xml || xml.length < 100) return events;
 
-  // Try plain fetch first
-  const html = await fetchHtml('https://mountvernonpubliclibrary.org/events/');
-  if (html && html.length > 100) {
-    parseHtml(html);
-    if (events.length > 0) return events;
-  }
+  const $ = cheerio.load(xml, { xmlMode: true });
+  $('item').each((_, el) => {
+    const title = $(el).find('title').text().trim();
+    const url   = $(el).find('link').text().trim();
+    const desc  = $(el).find('description').text();
+    if (!title || title.length < 3) return;
+
+    const dateMatch = desc.match(/([A-Za-z]+ \d{1,2}, \d{4})/);
+    if (!dateMatch) return;
+    const eventDate = parseDateStr(dateMatch[1]);
+    if (!eventDate || isNaN(eventDate.getTime()) || eventDate < cutoff) return;
+
+    const timeMatch = desc.match(/(\d{1,2}:\d{2}\s*[ap]m\s*-\s*\d{1,2}:\d{2}\s*[ap]m)/i);
+    const timeStr   = timeMatch ? timeMatch[1].trim() : '';
+
+    const key = `${title}|${dateKey(eventDate)}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+
+    events.push({ date: eventDate, time: timeStr, title, url, library: 'mount_vernon', category: 'both' });
+  });
 
   return events;
 }
