@@ -1487,14 +1487,20 @@ const MV_ABBR_MONTH = { Jan:1,Feb:2,Mar:3,Apr:4,May:5,Jun:6,Jul:7,Aug:8,Sep:9,Oc
 
 function parseMountVernonDate(raw) {
   const text = raw.replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
-  // Standard format: "April 25, 2026" — handled by parseDateStr
+  // Standard format: "April 25, 2026"
   let d = parseDateStr(text);
   if (d) return d;
-  // Abbreviated format: "Jun. 1 2026" or "Jun. 1 2026 6:00pm"
-  const m = text.match(/^([A-Za-z]{3})\.?\s+(\d{1,2})\s+(\d{4})/);
-  if (m) {
-    const mn = MV_ABBR_MONTH[m[1]];
-    if (mn) return new Date(parseInt(m[3]), mn - 1, parseInt(m[2]));
+  // Abbreviated format: "Jun. 1 2026"
+  const m1 = text.match(/^([A-Za-z]{3})\.?\s+(\d{1,2})\s+(\d{4})/);
+  if (m1) {
+    const mn = MV_ABBR_MONTH[m1[1]];
+    if (mn) return new Date(parseInt(m1[3]), mn - 1, parseInt(m1[2]));
+  }
+  // New format: "21 May 26" (DD Mon YY)
+  const m2 = text.match(/^(\d{1,2})\s+([A-Za-z]{3})\s+(\d{2})$/);
+  if (m2) {
+    const mn = MV_ABBR_MONTH[m2[2]];
+    if (mn) return new Date(2000 + parseInt(m2[3]), mn - 1, parseInt(m2[1]));
   }
   return null;
 }
@@ -1507,11 +1513,11 @@ async function scrapeMountVernon() {
     const $ = cheerio.load(html);
     $('.em-event.em-item').each((_, el) => {
       const $el     = $(el);
-      const titleEl = $el.find('h3.em-item-title a').first();
+      const titleEl = $el.find('.em-item-name a, h3.em-item-title a').first();
       const title   = titleEl.text().trim();
       const href    = titleEl.attr('href') || '';
       if (!title || title.toLowerCase().includes('library is closed') || title.length < 3) return;
-      const dateRaw   = $el.find('.em-event-date').first().text().replace(/\s+/g, ' ').trim();
+      const dateRaw   = $el.find('.em-event-date span:not(.em-icon)').first().text().replace(/\s+/g, ' ').trim();
       const dateStr   = dateRaw.split(/\s*-\s+/)[0].trim();
       const eventDate = parseMountVernonDate(dateStr);
       if (!eventDate || isNaN(eventDate.getTime()) || eventDate < cutoff) return;
