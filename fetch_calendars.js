@@ -164,9 +164,9 @@ function formatDate(d) {
 // HTTP helper
 // ---------------------------------------------------------------------------
 
-async function fetchHtml(url) {
+async function fetchHtml(url, timeoutMs = 20_000) {
   try {
-    const res = await fetch(url, { headers: FETCH_HEADERS, signal: AbortSignal.timeout(20_000) });
+    const res = await fetch(url, { headers: FETCH_HEADERS, signal: AbortSignal.timeout(timeoutMs) });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.text();
   } catch (e) {
@@ -1512,7 +1512,7 @@ async function scrapeMountVernon() {
 
   // Step 1: scrape events page to get title+date+url+category from section headings
   const categoryMap = new Map(); // key: "title|YYYY-MM-DD" → category
-  const html = await fetchHtml('https://mountvernonpubliclibrary.org/events/');
+  const html = await fetchHtml('https://mountvernonpubliclibrary.org/events/', 120_000);
   if (html && html.length > 100) {
     const $ = cheerio.load(html);
     $('li.widget').each((_, widget) => {
@@ -1533,7 +1533,7 @@ async function scrapeMountVernon() {
   }
 
   // Step 2: RSS feed for times (and fallback category via description)
-  const xml = await fetchHtml('https://mountvernonpubliclibrary.org/?post_type=event&feed=ical');
+  const xml = await fetchHtml('https://mountvernonpubliclibrary.org/?post_type=event&feed=ical', 120_000);
   if (!xml || xml.length < 100) return events;
 
   const $x = cheerio.load(xml, { xmlMode: true });
