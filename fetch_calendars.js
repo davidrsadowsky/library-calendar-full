@@ -2011,6 +2011,24 @@ async function main() {
   const months    = getMonths(3);
   const allEvents = [];
   let   mountKiscoMissing = false;
+  const cutoffToday = today();
+
+  // Load event cache (persists across runs so sites that are temporarily down still show events)
+  const CACHE_PATH = path.join(__dirname, 'events_cache.json');
+  let cache = {};
+  try { cache = JSON.parse(fs.readFileSync(CACHE_PATH, 'utf8')); } catch (_) {}
+
+  function applyCache(name, evs) {
+    if (evs.length > 0) {
+      cache[name] = evs.map(e => ({ ...e, date: e.date.toISOString() }));
+      return evs;
+    }
+    const cached = (cache[name] || [])
+      .map(e => ({ ...e, date: new Date(e.date) }))
+      .filter(e => e.date >= cutoffToday);
+    if (cached.length > 0) console.log(`  → 0 fresh, using ${cached.length} cached events`);
+    return cached;
+  }
 
   // librarycalendar.com / Drupal sites — internal pagination, called once
   const lcScrapers = [
@@ -2036,7 +2054,7 @@ async function main() {
   ];
   for (const [name, scraper] of lcScrapers) {
     console.log(`Fetching ${name}...`);
-    const evs = await scraper();
+    const evs = applyCache(name, await scraper());
     allEvents.push(...evs);
     console.log(`  → ${evs.length} events`);
   }
@@ -2049,18 +2067,18 @@ async function main() {
   ];
   for (const [name, scraper] of monthScrapers) {
     console.log(`Fetching ${name}...`);
-    let count = 0;
+    let raw = [];
     for (const [year, month] of months) {
-      const evs = await scraper(year, month);
-      allEvents.push(...evs);
-      count += evs.length;
+      raw.push(...await scraper(year, month));
       await sleep(400);
     }
-    console.log(`  → ${count} events`);
+    const evs = applyCache(name, raw);
+    allEvents.push(...evs);
+    console.log(`  → ${evs.length} events`);
   }
 
   console.log('Fetching Mount Kisco Public Library (headless browser)...');
-  let mkCount = 0;
+  let mkRaw = [];
   for (const [year, month] of months) {
     const { events: mkEvs, playwrightMissing } = await scrapeMountKisco(year, month);
     if (playwrightMissing) {
@@ -2069,76 +2087,43 @@ async function main() {
       console.log('     To enable: npm install playwright && npx playwright install chromium');
       break;
     }
-    allEvents.push(...mkEvs);
-    mkCount += mkEvs.length;
+    mkRaw.push(...mkEvs);
     await sleep(400);
   }
-  if (!mountKiscoMissing) console.log(`  → ${mkCount} events`);
+  if (!mountKiscoMissing) {
+    const mkEvs = applyCache('Mount Kisco Public Library', mkRaw);
+    allEvents.push(...mkEvs);
+    console.log(`  → ${mkEvs.length} events`);
+  }
 
-  // Tribe Events / Mamaroneck, Lewisboro, Briarcliff, Dobbs Ferry
-  const tribeScrapers = [
+  for (const [name, scraper] of [
     ['Mamaroneck Public Library',       scrapeMamaroneck],
     ['Lewisboro Library (South Salem)', scrapeLewisboro],
     ['Briarcliff Manor Library',        scrapeBriarcliff],
     ['Dobbs Ferry Public Library',      scrapeDobbsFerry],
-  ];
-  for (const [name, scraper] of tribeScrapers) {
-    console.log(`Fetching ${name}...`);
-    const evs = await scraper();
-    allEvents.push(...evs);
-    console.log(`  → ${evs.length} events`);
-  }
-
-  // Ardsley (flat Weebly pages)
-  console.log('Fetching Ardsley Public Library...');
-  { const evs = await scrapeArdsley(); allEvents.push(...evs); console.log(`  → ${evs.length} events`); }
-
-  // LibCal sites (JSON AJAX — no browser needed)
-  const libCalSites = [
-    ['Eastchester Public Library', scrapeEastchester],
-    ['Greenburgh Public Library',  scrapeGreenburgh],
-    ['Irvington Public Library',   scrapeIrvington],
-    ['Tuckahoe Public Library',    scrapeTuckahoe],
-    ['Rye Free Reading Room',      scrapeRye],
-  ];
-  for (const [name, scraper] of libCalSites) {
-    console.log(`Fetching ${name}...`);
-    const evs = await scraper();
-    allEvents.push(...evs);
-    console.log(`  → ${evs.length} events`);
-  }
-
-  // White Plains (Communico JSON API)
-  console.log('Fetching White Plains Public Library...');
-  { const evs = await scrapeWhitePlains(); allEvents.push(...evs); console.log(`  → ${evs.length} events`); }
-
-  // Field Library (Tribe REST API), Ruth Keeler (Tockify), Harrison (custom API), Hastings (SimpleCalendar)
-  for (const [name, scraper] of [
-    ['The Field Library (Peekskill)',    scrapeFieldLibrary],
-    ['Ruth Keeler Memorial Library',     scrapeRuthKeeler],
-    ['Harrison Library (Halperin)',      scrapeHarrisonHalperin],
-    ['Harrison Library (West Harrison)', scrapeHarrisonWest],
-    ['Hastings Public Library',          scrapeHastings],
+    ['Ardsley Public Library',          scrapeArdsley],
+    ['Eastchester Public Library',      scrapeEastchester],
+    ['Greenburgh Public Library',       scrapeGreenburgh],
+    ['Irvington Public Library',        scrapeIrvington],
+    ['Tuckahoe Public Library',         scrapeTuckahoe],
+    ['Rye Free Reading Room',           scrapeRye],
+    ['White Plains Public Library',     scrapeWhitePlains],
+    ['The Field Library (Peekskill)',   scrapeFieldLibrary],
+    ['Ruth Keeler Memorial Library',    scrapeRuthKeeler],
+    ['Harrison Library (Halperin)',     scrapeHarrisonHalperin],
+    ['Harrison Library (West Harrison)',scrapeHarrisonWest],
+    ['Hastings Public Library',         scrapeHastings],
+    ['Town of Pelham Public Library',   scrapePelham],
+    ['Port Chester-Rye Brook Library',  scrapePortChester],
+    ['Mount Vernon Public Library',     scrapeMountVernon],
   ]) {
     console.log(`Fetching ${name}...`);
-    const evs = await scraper();
+    const evs = applyCache(name, await scraper());
     allEvents.push(...evs);
     console.log(`  → ${evs.length} events`);
   }
 
-  console.log('Fetching Town of Pelham Public Library...');
-  { const evs = await scrapePelham(); allEvents.push(...evs); console.log(`  → ${evs.length} events`); }
-
-  // Port Chester + Mount Vernon
-  for (const [name, scraper] of [
-    ['Port Chester-Rye Brook Library', scrapePortChester],
-    ['Mount Vernon Public Library',    scrapeMountVernon],
-  ]) {
-    console.log(`Fetching ${name}...`);
-    const evs = await scraper();
-    allEvents.push(...evs);
-    console.log(`  → ${evs.length} events`);
-  }
+  fs.writeFileSync(CACHE_PATH, JSON.stringify(cache), 'utf8');
 
   console.log(`\nTotal events: ${allEvents.length}`);
 
