@@ -943,53 +943,58 @@ async function scrapeBriarcliff() {
 }
 
 async function scrapeDobbsFerry() {
-  // Events Manager plugin — pages use .em-item with img[alt] for title and "Month DD" date format
+  // Site uses Events Manager calendar grid view — .em-cal-day-date[data-date] with .cal-title/.cal-time children
   const cutoff = today();
   const events = [];
-  const yr     = new Date().getFullYear();
+  const seen   = new Set();
 
-  function parseDFDate(raw) {
-    const text = raw.replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
-    // "March 30" — try current year then next year
-    for (const y of [yr, yr + 1]) {
-      const d = parseDateStr(text + ', ' + y);
-      if (d && d >= cutoff) return d;
-    }
-    return null;
+  const now = new Date();
+  const monthStrs = [];
+  for (let i = 0; i < 3; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+    monthStrs.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
   }
 
-  // Kids page + general calendar (deduplicated by generateHtml)
-  const pages = [
-    ['https://dobbsferrylibrary.org/youth-services/calendar-for-young-people/', null],
-    ['https://dobbsferrylibrary.org/programs-2/calendar/', null],
+  const bases = [
+    'https://dobbsferrylibrary.org/youth-services/calendar-for-young-people/',
+    'https://dobbsferrylibrary.org/programs-2/calendar/',
   ];
 
-  for (const [url] of pages) {
-    const html = await fetchHtml(url);
-    if (!html) continue;
-    const $ = cheerio.load(html);
+  for (const base of bases) {
+    for (const monthStr of monthStrs) {
+      const html = await fetchHtml(`${base}?ajde_month=${monthStr}`);
+      if (!html) continue;
+      const $ = cheerio.load(html);
 
-    $('.em-event, .em-item').each((_, el) => {
-      const $el  = $(el);
-      const title = $el.find('.em-item-image img').first().attr('alt') || '';
-      if (!title || title.length < 3) return;
+      // Each .em-cal-day column has one .em-cal-day-date header + sibling .em-cal-event elements
+      $('.em-cal-day').each((_, dayCol) => {
+        const dateStr = $(dayCol).find('.em-cal-day-date[data-date]').attr('data-date');
+        if (!dateStr) return;
+        const eventDate = new Date(dateStr + 'T00:00:00');
+        if (isNaN(eventDate.getTime()) || eventDate < cutoff) return;
 
-      const href    = $el.find('a.em-item-read-more, a[href*="/events/"]').last().attr('href') || '';
-      const dateRaw = $el.find('.em-event-date, .em-event-meta-datetime').first().text();
-      const eventDate = parseDFDate(dateRaw);
-      if (!eventDate) return;
+        $(dayCol).find('.em-cal-event').each((_, evEl) => {
+          const title = $(evEl).find('.cal-title a').first().text().trim();
+          const href  = $(evEl).find('.cal-title a').first().attr('href') || '';
+          if (!title || title.length < 3) return;
 
-      const timeStr = $el.find('.em-event-time').first().text().replace(/\s+/g, ' ').trim();
+          const key = `${title}|${dateStr}`;
+          if (seen.has(key)) return;
+          seen.add(key);
 
-      const catText = $el.find('.em-event-categories a').map((_, a) => $(a).text().toLowerCase()).get().join(' ');
-      let category = 'both';
-      if (/child|kid|preschool|family|baby|elementary|toddler|school age|youth|teen|tween/.test(catText)) category = 'kids';
-      else if (/^adult|adult$|senior|book group|film/.test(catText)) category = 'adult';
-      else if (catText.includes('all ages')) category = 'both';
+          let timeStr = $(evEl).find('.cal-time').first().text().trim();
+          if (timeStr === '12:00 AM') timeStr = 'All day';
 
-      events.push({ date: eventDate, time: timeStr, title, url: href, library: 'dobbs_ferry', category });
-    });
-    await sleep(400);
+          const t = title.toLowerCase();
+          let category = 'both';
+          if (/child|kid|preschool|famil|baby|toddler|school.age|storytime|story.time|puppet|lego|chess|pok[eé]|youth|teen|tween/.test(t)) category = 'kids';
+          else if (/adult|senior|book.club|book.group|genealog|citizenship|computer|quilting|mah.jongg|film|writ|poetry|zoom.*register/.test(t)) category = 'adult';
+
+          events.push({ date: eventDate, time: timeStr, title, url: href, library: 'dobbs_ferry', category });
+        });
+      });
+      await sleep(400);
+    }
   }
   return events;
 }
