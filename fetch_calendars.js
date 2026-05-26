@@ -949,10 +949,10 @@ async function scrapeDobbsFerry() {
   const seen   = new Set();
 
   const now = new Date();
-  const monthStrs = [];
+  const months3 = [];
   for (let i = 0; i < 3; i++) {
     const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
-    monthStrs.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+    months3.push({ mo: d.getMonth() + 1, yr: d.getFullYear() });
   }
 
   const bases = [
@@ -961,8 +961,8 @@ async function scrapeDobbsFerry() {
   ];
 
   for (const base of bases) {
-    for (const monthStr of monthStrs) {
-      const html = await fetchHtml(`${base}?ajde_month=${monthStr}`);
+    for (const { mo, yr } of months3) {
+      const html = await fetchHtml(`${base}?mo=${mo}&yr=${yr}`);
       if (!html) continue;
       const $ = cheerio.load(html);
 
