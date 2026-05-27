@@ -1030,7 +1030,7 @@ async function scrapeWhitePlains() {
 
       const title   = (e.title || '').trim();
       if (!title) continue;
-      const isAllDay = /^12:00 AM$/i.test(e.start_time) && /^11:59 PM$/i.test(e.end_time);
+      const isAllDay = /^12:00\s*AM$/i.test(e.start_time) && /^11:59\s*PM$/i.test(e.end_time);
       const timeStr = isAllDay ? 'All day' : (e.start_time && e.end_time ? `${e.start_time} – ${e.end_time}` : (e.start_time || ''));
       const href    = (e.url || '').replace(/([^:])\/\//g, '$1/');
 
