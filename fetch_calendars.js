@@ -1820,6 +1820,18 @@ a.ev-title:hover { text-decoration: underline; }
   font-weight: 600;
 }
 .lib-toggle-btn:hover { background: #f0f0f0; }
+.jump-input {
+  font-size: .82rem;
+  font-weight: 600;
+  color: #333;
+  border: 1px solid #aaa;
+  border-radius: 20px;
+  padding: 3px 10px;
+  background: none;
+  cursor: pointer;
+  outline: none;
+}
+.jump-input:focus { border-color: #3a86ff; }
 .event.hidden { display: none; }
 .day.hidden { display: none; }
 @media (max-width: 640px) {
@@ -1868,6 +1880,10 @@ ${GA_MEASUREMENT_ID !== 'G-XXXXXXXXXX' ? `<script async src="https://www.googlet
       <button class="ctrl-btn" id="btn-none">Deselect All</button>
       <button class="lib-toggle-btn" id="btn-toggle-libs">Hide</button>
     </div>
+  </div>
+  <div class="filter-row">
+    <span class="filter-label">Date (optional):</span>
+    <input type="date" id="date-jump" class="jump-input" aria-label="Jump to date">
   </div>
   <div class="legend" id="lib-legend">${legend}</div>
   ${warning}
@@ -1934,6 +1950,17 @@ document.querySelectorAll('.cat-btn').forEach(btn => {
     if (typeof gtag !== 'undefined') gtag('event', 'audience_filter', { audience: btn.dataset.cat });
   });
 });
+document.getElementById('date-jump').addEventListener('change', function() {
+  const picked = this.value; // "YYYY-MM-DD"
+  if (!picked) return;
+  const days = [...document.querySelectorAll('.day[data-date]:not(.hidden)')].sort(
+    (a, b) => a.dataset.date.localeCompare(b.dataset.date)
+  );
+  const target = days.find(d => d.dataset.date >= picked);
+  if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  this.value = '';
+});
+
 // Hide any day sections that are now in the past (guards against stale HTML)
 (function() {
   const today = new Date().toISOString().slice(0, 10);

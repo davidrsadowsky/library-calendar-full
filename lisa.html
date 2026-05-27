@@ -6022,6 +6022,13 @@ document.getElementById('date-jump').addEventListener('change', function() {
   updateDays();
 })();
 
+(function() {
+  const keep = new Set(["bedford_free","bedford_hills","katonah","pound_ridge","mount_kisco","chappaqua","mount_pleasant"]);
+  document.querySelectorAll('.filter-btn').forEach(btn => {
+    if (!keep.has(btn.dataset.lib)) btn.classList.add('off');
+  });
+  applyFilters();
+})();
 </script>
 </body>
 </html>
