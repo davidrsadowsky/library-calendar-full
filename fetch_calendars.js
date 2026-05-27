@@ -1030,7 +1030,8 @@ async function scrapeWhitePlains() {
 
       const title   = (e.title || '').trim();
       if (!title) continue;
-      const timeStr = e.start_time && e.end_time ? `${e.start_time} – ${e.end_time}` : (e.start_time || '');
+      const isAllDay = /^12:00 AM$/i.test(e.start_time) && /^11:59 PM$/i.test(e.end_time);
+      const timeStr = isAllDay ? 'All day' : (e.start_time && e.end_time ? `${e.start_time} – ${e.end_time}` : (e.start_time || ''));
       const href    = (e.url || '').replace(/([^:])\/\//g, '$1/');
 
       events.push({ date: eventDate, time: timeStr, title, url: href, library: 'white_plains', category });
@@ -1962,7 +1963,12 @@ function clearDateFilter() {
   updateDays();
 }
 
+let dateJumpFocusTime = 0;
+document.getElementById('date-jump').addEventListener('focus', () => { dateJumpFocusTime = Date.now(); });
+
 document.getElementById('date-jump').addEventListener('change', function() {
+  // iOS fires change immediately on first tap with today's date — ignore it
+  if (Date.now() - dateJumpFocusTime < 500) return;
   const picked = this.value;
   if (!picked) { clearDateFilter(); return; }
   this.blur();
