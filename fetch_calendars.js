@@ -1834,6 +1834,7 @@ a.ev-title:hover { text-decoration: underline; }
 .jump-input:focus { border-color: #3a86ff; }
 .event.hidden { display: none; }
 .day.hidden { display: none; }
+.day.date-filtered { display: none; }
 @media (max-width: 640px) {
   header { padding: 12px 16px 10px; }
   h1 { font-size: 1.2rem; }
@@ -1849,6 +1850,7 @@ a.ev-title:hover { text-decoration: underline; }
   .badge { font-size: .65rem; }
   .legend { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-top: 6px; }
   .filter-btn { font-size: .68rem; padding: 3px 8px; min-height: 0; border-radius: 6px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .jump-input { font-size: 16px; } /* prevent iOS auto-zoom on focus */
 }
 </style>
 ${GA_MEASUREMENT_ID !== 'G-XXXXXXXXXX' ? `<script async src="https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}"></script>
@@ -1884,6 +1886,7 @@ ${GA_MEASUREMENT_ID !== 'G-XXXXXXXXXX' ? `<script async src="https://www.googlet
   <div class="filter-row">
     <span class="filter-label">Date (optional):</span>
     <input type="date" id="date-jump" class="jump-input" aria-label="Jump to date">
+    <button id="date-clear" class="ctrl-btn" style="display:none">✕ All dates</button>
   </div>
   <div class="legend" id="lib-legend">${legend}</div>
   ${warning}
@@ -1950,16 +1953,30 @@ document.querySelectorAll('.cat-btn').forEach(btn => {
     if (typeof gtag !== 'undefined') gtag('event', 'audience_filter', { audience: btn.dataset.cat });
   });
 });
+const dateClearBtn = document.getElementById('date-clear');
+
+function clearDateFilter() {
+  document.getElementById('date-jump').value = '';
+  document.querySelectorAll('.day[data-date]').forEach(d => d.classList.remove('date-filtered'));
+  dateClearBtn.style.display = 'none';
+  updateDays();
+}
+
 document.getElementById('date-jump').addEventListener('change', function() {
-  const picked = this.value; // "YYYY-MM-DD"
-  if (!picked) return;
-  const days = [...document.querySelectorAll('.day[data-date]:not(.hidden)')].sort(
+  const picked = this.value;
+  if (!picked) { clearDateFilter(); return; }
+  this.blur();
+  const allDays = [...document.querySelectorAll('.day[data-date]')].sort(
     (a, b) => a.dataset.date.localeCompare(b.dataset.date)
   );
-  const target = days.find(d => d.dataset.date >= picked);
-  if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  this.value = '';
+  // Find the first visible day on or after the picked date
+  const target = allDays.find(d => d.dataset.date >= picked && !d.classList.contains('hidden'));
+  allDays.forEach(d => d.classList.toggle('date-filtered', d !== target));
+  dateClearBtn.style.display = target ? 'inline-block' : 'none';
+  window.scrollTo({ top: 0 });
 });
+
+dateClearBtn.addEventListener('click', clearDateFilter);
 
 // Hide any day sections that are now in the past (guards against stale HTML)
 (function() {
