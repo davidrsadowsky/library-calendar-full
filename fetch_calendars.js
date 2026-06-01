@@ -135,8 +135,9 @@ function dateKey(d) {
 
 /** Today at local midnight. */
 function today() {
-  const d = new Date();
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const s = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' }).format(new Date());
+  const [y, m, d] = s.split('-').map(Number);
+  return new Date(y, m - 1, d);
 }
 
 /** Next n month starts as [year, month] arrays. */
@@ -1986,7 +1987,7 @@ dateClearBtn.addEventListener('click', clearDateFilter);
 
 // Hide any day sections that are now in the past (guards against stale HTML)
 (function() {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' }).format(new Date());
   document.querySelectorAll('.day[data-date]').forEach(sec => {
     if (sec.dataset.date < today) sec.classList.add('hidden');
   });
