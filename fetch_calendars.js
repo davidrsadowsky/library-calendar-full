@@ -944,10 +944,21 @@ async function scrapeBriarcliff() {
 }
 
 async function scrapeDobbsFerry() {
-  // Site uses Events Manager calendar grid view — .em-cal-day-date[data-date] with .cal-title/.cal-time children
+  // Use the list view (/events/?mo=M&yr=Y) which includes full start–end times in .le-temps
   const cutoff = today();
   const events = [];
   const seen   = new Set();
+  const yr     = new Date().getFullYear();
+
+  function parseDFDate(raw) {
+    // ".la-date" text is like "Monday, June 1" — strip weekday prefix
+    const text = raw.replace(/^[A-Za-z]+,\s*/, '').replace(/\s+/g, ' ').trim();
+    for (const y of [yr, yr + 1]) {
+      const d = parseDateStr(text + ', ' + y);
+      if (d && d >= cutoff) return d;
+    }
+    return null;
+  }
 
   const now = new Date();
   const months3 = [];
@@ -956,46 +967,35 @@ async function scrapeDobbsFerry() {
     months3.push({ mo: d.getMonth() + 1, yr: d.getFullYear() });
   }
 
-  const bases = [
-    'https://dobbsferrylibrary.org/youth-services/calendar-for-young-people/',
-    'https://dobbsferrylibrary.org/programs-2/calendar/',
-  ];
+  for (const { mo, yr: y } of months3) {
+    const html = await fetchHtml(`https://dobbsferrylibrary.org/events/?mo=${mo}&yr=${y}`);
+    if (!html) continue;
+    const $ = cheerio.load(html);
 
-  for (const base of bases) {
-    for (const { mo, yr } of months3) {
-      const html = await fetchHtml(`${base}?mo=${mo}&yr=${yr}`);
-      if (!html) continue;
-      const $ = cheerio.load(html);
+    $('.event-list-post').each((_, post) => {
+      const title = $(post).find('.le-title a').first().text().trim();
+      const href  = $(post).find('.le-title a').first().attr('href') || '';
+      if (!title || title.length < 3) return;
 
-      // Each .em-cal-day column has one .em-cal-day-date header + sibling .em-cal-event elements
-      $('.em-cal-day').each((_, dayCol) => {
-        const dateStr = $(dayCol).find('.em-cal-day-date[data-date]').attr('data-date');
-        if (!dateStr) return;
-        const eventDate = new Date(dateStr + 'T00:00:00');
-        if (isNaN(eventDate.getTime()) || eventDate < cutoff) return;
+      const dateRaw   = $(post).find('.la-date').first().text().trim();
+      const eventDate = parseDFDate(dateRaw);
+      if (!eventDate) return;
 
-        $(dayCol).find('.em-cal-event').each((_, evEl) => {
-          const title = $(evEl).find('.cal-title a').first().text().trim();
-          const href  = $(evEl).find('.cal-title a').first().attr('href') || '';
-          if (!title || title.length < 3) return;
+      const key = `${title}|${dateKey(eventDate)}`;
+      if (seen.has(key)) return;
+      seen.add(key);
 
-          const key = `${title}|${dateStr}`;
-          if (seen.has(key)) return;
-          seen.add(key);
+      let timeStr = $(post).find('.le-temps').first().text().trim();
+      if (/all.?day/i.test(timeStr)) timeStr = 'All day';
 
-          let timeStr = $(evEl).find('.cal-time').first().text().trim();
-          if (timeStr === '12:00 AM') timeStr = 'All day';
+      const t = title.toLowerCase();
+      let category = 'both';
+      if (/child|kid|preschool|famil|baby|toddler|school.age|storytime|story.time|puppet|lego|chess|pok[eé]|youth|teen|tween/.test(t)) category = 'kids';
+      else if (/adult|senior|book.club|book.group|genealog|citizenship|computer|quilting|mah.jongg|film|writ|poetry/.test(t)) category = 'adult';
 
-          const t = title.toLowerCase();
-          let category = 'both';
-          if (/child|kid|preschool|famil|baby|toddler|school.age|storytime|story.time|puppet|lego|chess|pok[eé]|youth|teen|tween/.test(t)) category = 'kids';
-          else if (/adult|senior|book.club|book.group|genealog|citizenship|computer|quilting|mah.jongg|film|writ|poetry|zoom.*register/.test(t)) category = 'adult';
-
-          events.push({ date: eventDate, time: timeStr, title, url: href, library: 'dobbs_ferry', category });
-        });
-      });
-      await sleep(400);
-    }
+      events.push({ date: eventDate, time: timeStr, title, url: href, library: 'dobbs_ferry', category });
+    });
+    await sleep(400);
   }
   return events;
 }

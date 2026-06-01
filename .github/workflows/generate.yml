@@ -46,7 +46,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add events_cache.json
           git diff --staged --quiet || git commit -m "Update events cache"
-          git pull --rebase
+          git pull --rebase --autostash
           git push
 
       - name: Move output to deploy folder
