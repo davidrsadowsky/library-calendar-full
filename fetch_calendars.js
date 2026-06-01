@@ -1556,7 +1556,7 @@ async function scrapeMountVernon() {
     if (!eventDate || isNaN(eventDate.getTime()) || eventDate < cutoff) return;
 
     const timeMatch = desc.match(/(\d{1,2}:\d{2}\s*[ap]m\s*-\s*\d{1,2}:\d{2}\s*[ap]m)/i);
-    const timeStr   = timeMatch ? timeMatch[1].trim() : '';
+    const timeStr   = timeMatch ? timeMatch[1].trim() : 'All day';
 
     const key = `${title}|${dateKey(eventDate)}`;
     if (seen.has(key)) return;
