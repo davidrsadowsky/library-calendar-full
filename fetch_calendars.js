@@ -255,6 +255,26 @@ function parseLcCalendar(html, libraryKey, options = {}) {
     }
     timeStr = timeStr.replace(/\s+/g, ' ');
 
+    // Multi-day range: "06/01/2026 @ 1:00pm – 06/03/2026 @ 5:30pm"
+    // → show on every day in the range with a clean label
+    const multiDay = timeStr.match(
+      /^(\d{1,2})\/(\d{1,2})\/(\d{4})\s*@\s*(.+?)\s*[–-]\s*(\d{1,2})\/(\d{1,2})\/(\d{4})\s*@\s*(.+)$/
+    );
+    if (multiDay) {
+      const [, sMo, sDay, sYr, sTime, eMo, eDay, eYr, eTime] = multiDay;
+      const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      const label = `${MONTHS[+sMo-1]} ${+sDay}, ${sTime.trim()} – ${MONTHS[+eMo-1]} ${+eDay}, ${eTime.trim()}`;
+      const start = new Date(+sYr, +sMo - 1, +sDay);
+      const end   = new Date(+eYr, +eMo - 1, +eDay);
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        const day = new Date(d);
+        if (day >= cutoff) {
+          events.push({ date: day, time: label, title, url: href, library: libraryKey, category: options.category || 'kids' });
+        }
+      }
+      return;
+    }
+
     events.push({ date: eventDate, time: timeStr, title, url: href, library: libraryKey, category: options.category || 'kids' });
   });
 
