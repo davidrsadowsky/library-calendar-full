@@ -50,7 +50,7 @@ jobs:
           git push
 
       - name: Move output to deploy folder
-        run: mkdir dist && mv *.html sitemap.xml dist/
+        run: mkdir dist && mv *.html sitemap.xml dist/ && cp favicon.svg favicon.ico apple-touch-icon.png dist/
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
