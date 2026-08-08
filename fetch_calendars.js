@@ -1714,7 +1714,7 @@ header {
 }
 h1 { font-size: 1.55rem; font-weight: 800; letter-spacing: -.02em; margin-bottom: 4px; color: #1d3461; }
 .meta { font-size: .82rem; color: #666; margin-bottom: 12px; }
-.lib-subtitle { font-size: .95rem; font-weight: 600; color: #3a86ff; margin-bottom: 6px; }
+.lib-subtitle { font-size: .95rem; font-weight: 600; margin-bottom: 6px; }
 .lib-subtitle.hidden { display: none; }
 .legend { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .legend.closed { display: none !important; }
@@ -1908,7 +1908,7 @@ ${GA_MEASUREMENT_ID !== 'G-XXXXXXXXXX' ? `<script async src="https://www.googlet
 <body>
 <header>
   <h1>Westchester Library Events</h1>
-  ${meta.ownKey ? `<p class="lib-subtitle" id="lib-subtitle">Showing: ${LIBRARIES[meta.ownKey].name}</p>` : ''}
+  ${meta.ownKey ? `<p class="lib-subtitle" id="lib-subtitle" style="color:${LIBRARIES[meta.ownKey].color}">Showing: ${LIBRARIES[meta.ownKey].name}</p>` : ''}
   <p class="meta">
     Updated: ${now} &nbsp;·&nbsp; ${total} upcoming event${total !== 1 ? 's' : ''} &nbsp;·&nbsp; Contact: <a href="mailto:admin@westchesterlibraryevents.com" style="color:inherit">admin@westchesterlibraryevents.com</a> &nbsp;·&nbsp; <a href="/privacy.html" style="color:inherit">Privacy Policy</a>
   </p>
