@@ -70,6 +70,12 @@ const LIBRARIES = {
 
 const GA_MEASUREMENT_ID = 'G-SFW77F51MG';
 
+// SEO: one dedicated landing page per library (e.g. mount-kisco.html), each pre-filtered
+// to that library with a unique title/description, plus a small footer linking between them.
+// Set to false to fully disable — no extra pages generated, no footer links, site behaves
+// exactly as it did before this feature existed.
+const GENERATE_LIBRARY_PAGES = true;
+
 const FETCH_HEADERS = {
   'User-Agent':
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) ' +
@@ -131,6 +137,11 @@ function parseDateStr(str) {
 /** Date → "YYYY-MM-DD" string for comparison/dedup. */
 function dateKey(d) {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+/** LIBRARIES key → URL slug, e.g. "mount_kisco" → "mount-kisco". */
+function librarySlug(key) {
+  return key.replace(/_/g, '-');
 }
 
 /** Today at local midnight. */
@@ -1600,7 +1611,15 @@ async function scrapeMountVernon() {
 // HTML generation
 // ---------------------------------------------------------------------------
 
-function generateHtml(allEvents, mountKiscoMissing, preselect = null) {
+function generateHtml(allEvents, mountKiscoMissing, preselect = null, pageMeta = null) {
+  const meta = {
+    title:         'Westchester Library Events',
+    description:   'Upcoming events at Westchester County public libraries, updated daily. Filter by one or more libraries and by age group — kids, adults, or all — to create your own custom list of events.',
+    h1:            'Westchester Library Events',
+    canonicalPath: '/',
+    ownKey:       null,
+    ...pageMeta,
+  };
   // Deduplicate — if same event appears in both kids and adult fetch, mark as 'both'
   const eventMap = new Map();
   for (const e of allEvents) {
@@ -1670,8 +1689,9 @@ function generateHtml(allEvents, mountKiscoMissing, preselect = null) {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect x='1' y='5' width='30' height='26' rx='3' fill='white' stroke='%231d3461' stroke-width='2'/><rect x='1' y='5' width='30' height='9' rx='3' fill='%231d3461'/><rect x='1' y='11' width='30' height='3' fill='%231d3461'/><rect x='8' y='2' width='3.5' height='7' rx='1.75' fill='%233a86ff'/><rect x='20.5' y='2' width='3.5' height='7' rx='1.75' fill='%233a86ff'/><text x='16' y='27' font-family='Arial,sans-serif' font-size='13' font-weight='900' fill='%231d3461' text-anchor='middle'>W</text></svg>">
-<title>Westchester Library Events</title>
-<meta name="description" content="Upcoming events at Westchester County public libraries, updated daily. Filter by one or more libraries and by age group — kids, adults, or all — to create your own custom list of events.">
+<title>${meta.title}</title>
+<meta name="description" content="${meta.description}">
+<link rel="canonical" href="https://westchesterlibraryevents.com${meta.canonicalPath}">
 <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect x='1' y='5' width='30' height='26' rx='3' fill='white' stroke='%231d3461' stroke-width='2'/><rect x='1' y='5' width='30' height='9' rx='3' fill='%231d3461'/><rect x='1' y='11' width='30' height='3' fill='%231d3461'/><rect x='8' y='2' width='3.5' height='7' rx='1.75' fill='%233a86ff'/><rect x='20.5' y='2' width='3.5' height='7' rx='1.75' fill='%233a86ff'/><text x='16' y='27' font-family='Arial,sans-serif' font-size='13' font-weight='900' fill='%231d3461' text-anchor='middle'>W</text></svg>">
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -1885,7 +1905,7 @@ ${GA_MEASUREMENT_ID !== 'G-XXXXXXXXXX' ? `<script async src="https://www.googlet
 </head>
 <body>
 <header>
-  <h1>Westchester Library Events</h1>
+  <h1>${meta.h1}</h1>
   <p class="meta">
     Updated: ${now} &nbsp;·&nbsp; ${total} upcoming event${total !== 1 ? 's' : ''} &nbsp;·&nbsp; Contact: <a href="mailto:admin@westchesterlibraryevents.com" style="color:inherit">admin@westchesterlibraryevents.com</a> &nbsp;·&nbsp; <a href="/privacy.html" style="color:inherit">Privacy Policy</a>
   </p>
@@ -1916,6 +1936,15 @@ ${GA_MEASUREMENT_ID !== 'G-XXXXXXXXXX' ? `<script async src="https://www.googlet
 <main>
   ${unique.length ? daysHtml : empty}
 </main>
+${GENERATE_LIBRARY_PAGES ? `<footer style="max-width:900px;margin:0 auto;padding:20px 16px 36px;text-align:center;">
+  <p style="font-size:.62rem;color:#c9c9c9;line-height:2;">
+    ${Object.entries(LIBRARIES)
+      .sort(([, a], [, b]) => a.name.localeCompare(b.name))
+      .filter(([key]) => key !== meta.ownKey)
+      .map(([key, l]) => `<a href="/${librarySlug(key)}.html" style="color:#c9c9c9;text-decoration:none;">${l.name}</a>`)
+      .join(' · ')}
+  </p>
+</footer>` : ''}
 <script>
 const filterBtns = document.querySelectorAll('.filter-btn');
 let catMode = 'all';
@@ -2214,6 +2243,22 @@ async function main() {
   const privacyPath = path.join(__dirname, 'privacy.html');
   fs.writeFileSync(privacyPath, generatePrivacyHtml(), 'utf8');
   console.log(`Privacy page saved → ${privacyPath}`);
+
+  if (GENERATE_LIBRARY_PAGES) {
+    for (const [key, lib] of Object.entries(LIBRARIES)) {
+      const slug = librarySlug(key);
+      const pageMeta = {
+        title:         `${lib.name} Events | Westchester Library Events`,
+        description:   `See upcoming events at ${lib.name}, updated daily. Also browse events at 35+ other Westchester County libraries in one place.`,
+        h1:            `${lib.name} Events`,
+        canonicalPath: `/${slug}.html`,
+        ownKey:        key,
+      };
+      const libPath = path.join(__dirname, `${slug}.html`);
+      fs.writeFileSync(libPath, generateHtml(allEvents, mountKiscoMissing, [key], pageMeta), 'utf8');
+    }
+    console.log(`Generated ${Object.keys(LIBRARIES).length} per-library SEO pages`);
+  }
 
   try {
     execSync(`open "${outputPath}"`);

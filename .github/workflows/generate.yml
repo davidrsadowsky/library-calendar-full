@@ -50,7 +50,7 @@ jobs:
           git push
 
       - name: Move output to deploy folder
-        run: mkdir dist && mv index.html lisa.html privacy.html dist/
+        run: mkdir dist && mv *.html dist/
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
