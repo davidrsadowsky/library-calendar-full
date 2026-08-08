@@ -1615,7 +1615,6 @@ function generateHtml(allEvents, mountKiscoMissing, preselect = null, pageMeta =
   const meta = {
     title:         'Westchester Library Events',
     description:   'Upcoming events at Westchester County public libraries, updated daily. Filter by one or more libraries and by age group — kids, adults, or all — to create your own custom list of events.',
-    h1:            'Westchester Library Events',
     canonicalPath: '/',
     ownKey:       null,
     ...pageMeta,
@@ -1715,6 +1714,8 @@ header {
 }
 h1 { font-size: 1.55rem; font-weight: 800; letter-spacing: -.02em; margin-bottom: 4px; color: #1d3461; }
 .meta { font-size: .82rem; color: #666; margin-bottom: 12px; }
+.lib-subtitle { font-size: .95rem; font-weight: 600; color: #3a86ff; margin-bottom: 6px; }
+.lib-subtitle.hidden { display: none; }
 .legend { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .legend.closed { display: none !important; }
 .warn {
@@ -1906,7 +1907,8 @@ ${GA_MEASUREMENT_ID !== 'G-XXXXXXXXXX' ? `<script async src="https://www.googlet
 </head>
 <body>
 <header>
-  <h1>${meta.h1}</h1>
+  <h1>Westchester Library Events</h1>
+  ${meta.ownKey ? `<p class="lib-subtitle" id="lib-subtitle">Showing: ${LIBRARIES[meta.ownKey].name}</p>` : ''}
   <p class="meta">
     Updated: ${now} &nbsp;·&nbsp; ${total} upcoming event${total !== 1 ? 's' : ''} &nbsp;·&nbsp; Contact: <a href="mailto:admin@westchesterlibraryevents.com" style="color:inherit">admin@westchesterlibraryevents.com</a> &nbsp;·&nbsp; <a href="/privacy.html" style="color:inherit">Privacy Policy</a>
   </p>
@@ -1949,12 +1951,22 @@ ${GENERATE_LIBRARY_PAGES ? `<footer style="max-width:900px;margin:0 auto;padding
 <script>
 const filterBtns = document.querySelectorAll('.filter-btn');
 let catMode = 'all';
+const originalPreselect = ${preselect ? JSON.stringify(preselect) : 'null'};
 
 function updateDays() {
   document.querySelectorAll('.day').forEach(day => {
     const anyVisible = [...day.querySelectorAll('.event')].some(e => !e.classList.contains('hidden'));
     day.classList.toggle('hidden', !anyVisible);
   });
+}
+
+function updateSubtitleVisibility() {
+  const subtitle = document.getElementById('lib-subtitle');
+  if (!subtitle || !originalPreselect) return;
+  const active   = [...filterBtns].filter(b => !b.classList.contains('off')).map(b => b.dataset.lib).sort();
+  const original = [...originalPreselect].sort();
+  const matches  = active.length === original.length && active.every((v, i) => v === original[i]);
+  subtitle.classList.toggle('hidden', !matches);
 }
 
 function applyFilters() {
@@ -1965,6 +1977,7 @@ function applyFilters() {
     ev.classList.toggle('hidden', libOff || !catOk);
   });
   updateDays();
+  updateSubtitleVisibility();
 }
 
 filterBtns.forEach(btn => {
@@ -2269,7 +2282,6 @@ async function main() {
       const pageMeta = {
         title:         `${lib.name} Events | Westchester Library Events`,
         description:   `See upcoming events at ${lib.name}, updated daily. Also browse events at 35+ other Westchester County libraries in one place.`,
-        h1:            `${lib.name} Events`,
         canonicalPath: `/${slug}.html`,
         ownKey:        key,
       };

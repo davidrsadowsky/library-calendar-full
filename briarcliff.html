@@ -30,6 +30,8 @@ header {
 }
 h1 { font-size: 1.55rem; font-weight: 800; letter-spacing: -.02em; margin-bottom: 4px; color: #1d3461; }
 .meta { font-size: .82rem; color: #666; margin-bottom: 12px; }
+.lib-subtitle { font-size: .95rem; font-weight: 600; color: #3a86ff; margin-bottom: 6px; }
+.lib-subtitle.hidden { display: none; }
 .legend { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .legend.closed { display: none !important; }
 .warn {
@@ -221,9 +223,10 @@ a.ev-title:hover { text-decoration: underline; }
 </head>
 <body>
 <header>
-  <h1>Briarcliff Manor Public Library Events</h1>
+  <h1>Westchester Library Events</h1>
+  <p class="lib-subtitle" id="lib-subtitle">Showing: Briarcliff Manor Public Library</p>
   <p class="meta">
-    Updated: Saturday, August 8, 2026 at 2:08 AM &nbsp;·&nbsp; 5008 upcoming events &nbsp;·&nbsp; Contact: <a href="mailto:admin@westchesterlibraryevents.com" style="color:inherit">admin@westchesterlibraryevents.com</a> &nbsp;·&nbsp; <a href="/privacy.html" style="color:inherit">Privacy Policy</a>
+    Updated: Saturday, August 8, 2026 at 2:24 AM &nbsp;·&nbsp; 5008 upcoming events &nbsp;·&nbsp; Contact: <a href="mailto:admin@westchesterlibraryevents.com" style="color:inherit">admin@westchesterlibraryevents.com</a> &nbsp;·&nbsp; <a href="/privacy.html" style="color:inherit">Privacy Policy</a>
   </p>
   <div class="filter-row">
     <span class="filter-label">Events:</span>
@@ -5716,12 +5719,22 @@ a.ev-title:hover { text-decoration: underline; }
 <script>
 const filterBtns = document.querySelectorAll('.filter-btn');
 let catMode = 'all';
+const originalPreselect = ["briarcliff"];
 
 function updateDays() {
   document.querySelectorAll('.day').forEach(day => {
     const anyVisible = [...day.querySelectorAll('.event')].some(e => !e.classList.contains('hidden'));
     day.classList.toggle('hidden', !anyVisible);
   });
+}
+
+function updateSubtitleVisibility() {
+  const subtitle = document.getElementById('lib-subtitle');
+  if (!subtitle || !originalPreselect) return;
+  const active   = [...filterBtns].filter(b => !b.classList.contains('off')).map(b => b.dataset.lib).sort();
+  const original = [...originalPreselect].sort();
+  const matches  = active.length === original.length && active.every((v, i) => v === original[i]);
+  subtitle.classList.toggle('hidden', !matches);
 }
 
 function applyFilters() {
@@ -5732,6 +5745,7 @@ function applyFilters() {
     ev.classList.toggle('hidden', libOff || !catOk);
   });
   updateDays();
+  updateSubtitleVisibility();
 }
 
 filterBtns.forEach(btn => {
