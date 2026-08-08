@@ -2060,6 +2060,23 @@ ${preselect ? `
 // Main
 // ---------------------------------------------------------------------------
 
+function generateSitemap() {
+  const base = 'https://westchesterlibraryevents.com';
+  const urls = [{ loc: `${base}/`, priority: '1.0' }];
+
+  if (GENERATE_LIBRARY_PAGES) {
+    for (const key of Object.keys(LIBRARIES)) {
+      urls.push({ loc: `${base}/${librarySlug(key)}.html`, priority: '0.8' });
+    }
+  }
+
+  const entries = urls.map(u =>
+    `  <url>\n    <loc>${u.loc}</loc>\n    <changefreq>daily</changefreq>\n    <priority>${u.priority}</priority>\n  </url>`
+  ).join('\n');
+
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${entries}\n</urlset>\n`;
+}
+
 function generatePrivacyHtml() {
   return `<!DOCTYPE html>
 <html lang="en">
@@ -2259,6 +2276,10 @@ async function main() {
     }
     console.log(`Generated ${Object.keys(LIBRARIES).length} per-library SEO pages`);
   }
+
+  const sitemapPath = path.join(__dirname, 'sitemap.xml');
+  fs.writeFileSync(sitemapPath, generateSitemap(), 'utf8');
+  console.log(`Sitemap saved → ${sitemapPath}`);
 
   try {
     execSync(`open "${outputPath}"`);
