@@ -1059,35 +1059,44 @@ async function scrapeWhitePlains() {
   const todayStr = new Date().toISOString().slice(0, 10);
   const base    = 'https://calendar.whiteplainslibrary.org/eeventcaldata?event_type=0&req=';
 
-  for (const [ageGroup, category] of [['Children', 'kids'], ['Adults', 'adult']]) {
-    const req = JSON.stringify({ private: false, date: todayStr, days: 90, locations: [], ages: [ageGroup], types: [] });
-    const url = base + encodeURIComponent(req);
-    let evts;
-    try {
-      const r = await fetch(url, { headers: FETCH_HEADERS, signal: AbortSignal.timeout(20_000) });
-      if (!r.ok) continue;
-      evts = await r.json();
-    } catch (e) {
-      console.log(`    [warn] White Plains ${category}: ${e.message}`);
-      continue;
-    }
+  // Fetch all events with no age filter, then classify from agesArray ourselves.
+  // The API's own "Children"/"Adults" tags miss ~1 in 5 events tagged only with
+  // things like "Teens", "Families", "Kindergarten", "Grades 1-3", etc.
+  const KIDS_TAGS  = /^(children|teens|families|kindergarten|grades? |elementary|middle school|high school|birth to|ages? \d)/i;
+  const ADULT_TAGS = /^(adults?|parents)/i;
 
-    for (const e of evts) {
-      const rawStart = e.raw_start_time || '';         // "2026-04-24 11:00:00"
-      const datePart = rawStart.slice(0, 10);
-      if (!datePart.match(/^\d{4}-\d{2}-\d{2}$/)) continue;
-      const eventDate = new Date(datePart + 'T00:00:00');
-      if (isNaN(eventDate.getTime()) || eventDate < cutoff) continue;
+  const req = JSON.stringify({ private: false, date: todayStr, days: 90, locations: [], ages: [], types: [] });
+  const url = base + encodeURIComponent(req);
+  let evts;
+  try {
+    const r = await fetch(url, { headers: FETCH_HEADERS, signal: AbortSignal.timeout(20_000) });
+    if (!r.ok) return events;
+    evts = await r.json();
+  } catch (e) {
+    console.log(`    [warn] White Plains: ${e.message}`);
+    return events;
+  }
 
-      const title   = (e.title || '').trim();
-      if (!title) continue;
-      const isAllDay = /^12:00\s*AM$/i.test(e.start_time) && /^11:59\s*PM$/i.test(e.end_time);
-      const timeStr = isAllDay ? 'All day' : (e.start_time && e.end_time ? `${e.start_time} – ${e.end_time}` : (e.start_time || ''));
-      const href    = (e.url || '').replace(/([^:])\/\//g, '$1/');
+  for (const e of evts) {
+    const rawStart = e.raw_start_time || '';         // "2026-04-24 11:00:00"
+    const datePart = rawStart.slice(0, 10);
+    if (!datePart.match(/^\d{4}-\d{2}-\d{2}$/)) continue;
+    const eventDate = new Date(datePart + 'T00:00:00');
+    if (isNaN(eventDate.getTime()) || eventDate < cutoff) continue;
 
-      events.push({ date: eventDate, time: timeStr, title, url: href, library: 'white_plains', category });
-    }
-    await sleep(400);
+    const title = (e.title || '').trim();
+    if (!title) continue;
+
+    const tags = Array.isArray(e.agesArray) ? e.agesArray : [];
+    const isKids  = tags.some(t => KIDS_TAGS.test(t));
+    const isAdult = tags.some(t => ADULT_TAGS.test(t));
+    const category = isKids && isAdult ? 'both' : isKids ? 'kids' : isAdult ? 'adult' : 'both';
+
+    const isAllDay = /^12:00\s*AM$/i.test(e.start_time) && /^11:59\s*PM$/i.test(e.end_time);
+    const timeStr = isAllDay ? 'All day' : (e.start_time && e.end_time ? `${e.start_time} – ${e.end_time}` : (e.start_time || ''));
+    const href    = (e.url || '').replace(/([^:])\/\//g, '$1/');
+
+    events.push({ date: eventDate, time: timeStr, title, url: href, library: 'white_plains', category });
   }
   return events;
 }
@@ -1662,7 +1671,13 @@ function generateHtml(allEvents, mountKiscoMissing, preselect = null, pageMeta =
   // that is either a scraper date bug or far-future recurring-series noise.
   const t0 = today();
   const displayCap = new Date(t0.getFullYear(), t0.getMonth() + 4, 1);
-  const unique = [...eventMap.values()].filter(e => e.date < displayCap);
+  // Most library platforms have no structured "cancelled" field — staff instead
+  // rename the event title (e.g. "Cancelled - Adult Mahjong"). Catch that here so
+  // it's filtered on every generated page regardless of which scraper found it.
+  const CANCELLED_RE = /\b(cancell?ed|postponed)\b/i;
+  const unique = [...eventMap.values()]
+    .filter(e => e.date < displayCap)
+    .filter(e => !CANCELLED_RE.test(e.title));
 
   // Normalise all time strings before sorting
   for (const e of unique) e.time = normalizeTimeStr(e.time);
