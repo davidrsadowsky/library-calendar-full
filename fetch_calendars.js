@@ -1286,7 +1286,7 @@ async function scrapeFieldLibrary() {
 }
 
 
-// --- 10. Pelham (Events Manager — no categories, tag all 'both')
+// --- 10. Pelham (Events Manager — no category tags, but categorized from title+description)
 
 const ABBR_MONTH = { Jan:1, Feb:2, Mar:3, Apr:4, May:5, Jun:6, Jul:7, Aug:8, Sep:9, Oct:10, Nov:11, Dec:12 };
 
@@ -1344,7 +1344,14 @@ async function scrapePelham() {
       seen.add(key);
 
       const timeRaw = $el.find('.em-event-time').text().replace(/<br\s*\/?>/gi, ' ').replace(/\s+/g, ' ').trim();
-      events.push({ date: eventDate, time: timeRaw, title, url: href, library: 'pelham', category: 'both' });
+
+      const desc = $el.find('.em-item-desc').first().text();
+      const blob = (title + ' ' + desc).toLowerCase();
+      let category = 'adult';
+      if (/child|kid|preschool|famil|baby|toddler|school.age|storytime|story.time|puppet|lego|pok[eé]|youth|teen|tween/.test(blob)) category = 'kids';
+      category = widenIfAllAges(category, desc);
+
+      events.push({ date: eventDate, time: timeRaw, title, url: href, library: 'pelham', category });
     });
     await sleep(400);
   }
@@ -1385,6 +1392,7 @@ async function scrapeHastings() {
       const $el   = $(el);
       const title = $el.find('.simcal-event-title').first().text().trim();
       if (!title || title.length < 3) return;
+      if (/library (is |will be )?closed/i.test(title)) return;
 
       const dateContent = $el.find('.simcal-event-start-date').first().attr('content') || '';
       const datePart    = dateContent.slice(0, 10);
@@ -1404,7 +1412,14 @@ async function scrapeHastings() {
       const timeStr = endTime ? `${fmt12(startTime)} – ${fmt12(endTime)}` : fmt12(startTime);
 
       const gcalLink = $el.find('a[href*="google.com/calendar/event"]').attr('href') || '';
-      events.push({ date: eventDate, time: timeStr, title, url: gcalLink, library: 'hastings', category: 'both' });
+
+      const desc = $el.find('.simcal-event-description').first().text();
+      const blob = (title + ' ' + desc).toLowerCase();
+      let category = 'adult';
+      if (/child|kid|preschool|famil|baby|toddler|school.age|storytime|story.time|puppet|lego|pok[eé]|youth|teen|tween/.test(blob)) category = 'kids';
+      category = widenIfAllAges(category, desc);
+
+      events.push({ date: eventDate, time: timeStr, title, url: gcalLink, library: 'hastings', category });
     });
     await sleep(400);
   }
