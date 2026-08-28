@@ -555,6 +555,10 @@ async function scrapeMhSoftware(calendarId, libraryKey, year, month, typeMap = {
   $('td').each((_, td) => {
     const $td = $(td);
 
+    // Skip spill-over cells from adjacent months (e.g. Oct 1 shown in the September
+    // grid's last row) — counting them mislabels events with the wrong month.
+    if ($td.hasClass('OffMonthCell')) return;
+
     // Find the day number. connectDaily puts it in .MHVCDayNumber or a prominent text node.
     let dayNum = null;
 
@@ -605,7 +609,19 @@ async function scrapeMhSoftware(calendarId, libraryKey, year, month, typeMap = {
         ? `https://ncpl.mhsoftware.com/ViewItem.html?integral=0&cal_item_id=${popMatch[1]}&dtwhen=${popMatch[2]}`
         : '';
 
-      events.push({ date: eventDate, time: timeStr, title, url: eventUrl, library: libraryKey, category });
+      // dtwhen is a Julian day number encoding the event's true date — trust it over
+      // the grid cell position (JD 2440588 = Jan 1, 1970).
+      let trueDate = eventDate;
+      if (popMatch) {
+        const jd = parseInt(popMatch[2], 10);
+        if (jd > 2400000 && jd < 2500000) {
+          const utc = new Date((jd - 2440588) * 86400000);
+          trueDate  = new Date(utc.getUTCFullYear(), utc.getUTCMonth(), utc.getUTCDate());
+          if (trueDate < cutoff) return;
+        }
+      }
+
+      events.push({ date: trueDate, time: timeStr, title, url: eventUrl, library: libraryKey, category });
     });
   });
 
