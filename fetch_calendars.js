@@ -73,6 +73,16 @@ const GA_MEASUREMENT_ID = 'G-SFW77F51MG';
 // exactly as it did before this feature existed.
 const GENERATE_LIBRARY_PAGES = true;
 
+// Alert email: sent when a library returns 0 fresh events for this many
+// consecutive runs (i.e. has been silently relying on cached events), and
+// re-sent every ALERT_REPEAT_DAYS if still silent. Needs BREVO_SMTP_USER /
+// BREVO_SMTP_PASS set as env vars (GitHub secrets in CI) — silently skipped
+// if they're not set, so local runs without credentials still work fine.
+const ALERT_SILENT_THRESHOLD = 3;
+const ALERT_REPEAT_DAYS      = 7;
+const ALERT_EMAIL_TO         = 'davidrsadowsky@gmail.com';
+const ALERT_EMAIL_FROM       = 'admin@westchesterlibraryevents.com';
+
 const FETCH_HEADERS = {
   'User-Agent':
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) ' +
@@ -2086,6 +2096,53 @@ a { color: #3a86ff; }
 </html>`;
 }
 
+// ---------------------------------------------------------------------------
+// Silent-library alert email (Brevo SMTP)
+// ---------------------------------------------------------------------------
+
+async function sendAlertEmail(silentLibraries) {
+  if (!silentLibraries.length) return;
+
+  const user = process.env.BREVO_SMTP_USER;
+  const pass = process.env.BREVO_SMTP_PASS;
+  if (!user || !pass) {
+    console.log(`\n[alert] ${silentLibraries.length} library(ies) silent, but BREVO_SMTP_USER/PASS not set — skipping email.`);
+    return;
+  }
+
+  let nodemailer;
+  try {
+    nodemailer = require('nodemailer');
+  } catch (_) {
+    console.log('\n[alert] nodemailer not installed — skipping email.');
+    return;
+  }
+
+  const lines = silentLibraries.map(l => `- ${l.name}: 0 fresh events for ${l.silentDays} day(s) in a row`);
+  const text =
+    `The following libraries have returned 0 fresh events for ${ALERT_SILENT_THRESHOLD}+ consecutive runs ` +
+    `and are currently being shown from cached (possibly stale) data:\n\n${lines.join('\n')}\n\n` +
+    `This usually means the library's website changed its layout, moved platforms, or is temporarily down. ` +
+    `Check https://westchesterlibraryevents.com and the library's own site to confirm.`;
+
+  try {
+    const transport = nodemailer.createTransport({
+      host: 'smtp-relay.brevo.com',
+      port: 587,
+      auth: { user, pass },
+    });
+    await transport.sendMail({
+      from: ALERT_EMAIL_FROM,
+      to: ALERT_EMAIL_TO,
+      subject: `Westchester Library Events: ${silentLibraries.length} library(ies) silent`,
+      text,
+    });
+    console.log(`\n[alert] Sent silent-library email for: ${silentLibraries.map(l => l.name).join(', ')}`);
+  } catch (e) {
+    console.log(`\n[alert] Failed to send email: ${e.message}`);
+  }
+}
+
 async function main() {
   const months    = getMonths(3);
   const allEvents = [];
@@ -2096,10 +2153,31 @@ async function main() {
   let cache = {};
   try { cache = JSON.parse(fs.readFileSync(CACHE_PATH, 'utf8')); } catch (_) {}
 
+  // Load scraper health (tracks consecutive 0-fresh-event runs per library, for alerting)
+  const HEALTH_PATH = path.join(__dirname, 'scraper_health.json');
+  let health = {};
+  try { health = JSON.parse(fs.readFileSync(HEALTH_PATH, 'utf8')); } catch (_) {}
+  const todayKey = dateKey(cutoffToday);
+  const silentLibraries = [];
+
   function applyCache(name, evs) {
+    const h = health[name] || { silentDays: 0, lastAlertDay: null };
     if (evs.length > 0) {
       cache[name] = evs.map(e => ({ ...e, date: e.date.toISOString() }));
+      h.silentDays = 0;
+      health[name] = h;
       return evs;
+    }
+    h.silentDays += 1;
+    health[name] = h;
+    if (h.silentDays >= ALERT_SILENT_THRESHOLD) {
+      const daysSinceAlert = h.lastAlertDay
+        ? Math.round((cutoffToday - new Date(h.lastAlertDay)) / 86400000)
+        : Infinity;
+      if (daysSinceAlert >= ALERT_REPEAT_DAYS) {
+        silentLibraries.push({ name, silentDays: h.silentDays });
+        h.lastAlertDay = todayKey;
+      }
     }
     const cached = (cache[name] || [])
       .map(e => ({ ...e, date: new Date(e.date) }))
@@ -2184,6 +2262,8 @@ async function main() {
   }
 
   fs.writeFileSync(CACHE_PATH, JSON.stringify(cache), 'utf8');
+  fs.writeFileSync(HEALTH_PATH, JSON.stringify(health), 'utf8');
+  await sendAlertEmail(silentLibraries);
 
   console.log(`\nTotal events: ${allEvents.length}`);
 
