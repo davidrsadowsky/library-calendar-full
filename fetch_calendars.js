@@ -151,6 +151,20 @@ function librarySlug(key) {
   return key.replace(/_/g, '-');
 }
 
+// Many platforms tag an event's audience too narrowly at the category/type-ID
+// level, but state the true audience explicitly in the event's own description
+// (e.g. a "Chess Club" tagged internally as an adult program whose description
+// says "all ages welcome"). Where description text is available — often for
+// free, since we already fetched the page/response it lives in — check it and
+// widen the category rather than trusting the coarser tag alone.
+const ALL_AGES_RE = /\ball ages\b|\bopen to all\b|families welcome|everyone welcome|for all ages|kids and adults|children and adults/i;
+
+function widenIfAllAges(category, ...texts) {
+  if (category === 'both') return category;
+  const blob = texts.filter(Boolean).join(' ');
+  return ALL_AGES_RE.test(blob) ? 'both' : category;
+}
+
 /** Today at local midnight. */
 function today() {
   const s = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' }).format(new Date());
@@ -273,6 +287,9 @@ function parseLcCalendar(html, libraryKey, options = {}) {
     }
     timeStr = timeStr.replace(/\s+/g, ' ');
 
+    const description = $el.find('.lc-list-event-description, .lc-event__body').first().text();
+    const category = widenIfAllAges(options.category || 'kids', description);
+
     // Multi-day range: "06/01/2026 @ 1:00pm – 06/03/2026 @ 5:30pm"
     // → show on every day in the range with a clean label
     const multiDay = timeStr.match(
@@ -287,13 +304,13 @@ function parseLcCalendar(html, libraryKey, options = {}) {
       for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
         const day = new Date(d);
         if (day >= cutoff) {
-          events.push({ date: day, time: label, title, url: href, library: libraryKey, category: options.category || 'kids' });
+          events.push({ date: day, time: label, title, url: href, library: libraryKey, category });
         }
       }
       return;
     }
 
-    events.push({ date: eventDate, time: timeStr, title, url: href, library: libraryKey, category: options.category || 'kids' });
+    events.push({ date: eventDate, time: timeStr, title, url: href, library: libraryKey, category });
   });
 
   return events;
@@ -531,7 +548,8 @@ async function fetchBedfordFreePage(urlPath, year, month, category) {
     const eventDate = parseDateStr(`${rawDate}, ${year}`);
     if (!eventDate || eventDate < cutoff) return;
 
-    events.push({ date: eventDate, time: timeStr, title, url: href, library: 'bedford_free', category });
+    const evCategory = widenIfAllAges(category, $el.find('.event-content').first().text());
+    events.push({ date: eventDate, time: timeStr, title, url: href, library: 'bedford_free', category: evCategory });
   });
 
   return events;
@@ -620,6 +638,7 @@ async function scrapeMhSoftware(calendarId, libraryKey, year, month, typeMap = {
       const eventUrl  = popMatch
         ? `https://ncpl.mhsoftware.com/ViewItem.html?integral=0&cal_item_id=${popMatch[1]}&dtwhen=${popMatch[2]}`
         : '';
+      const calItemId = popMatch ? popMatch[1] : null;
 
       // dtwhen is a Julian day number encoding the event's true date — trust it over
       // the grid cell position (JD 2440588 = Jan 1, 1970).
@@ -633,9 +652,35 @@ async function scrapeMhSoftware(calendarId, libraryKey, year, month, typeMap = {
         }
       }
 
-      events.push({ date: trueDate, time: timeStr, title, url: eventUrl, library: libraryKey, category });
+      events.push({ date: trueDate, time: timeStr, title, url: eventUrl, library: libraryKey, category, calItemId });
     });
   });
+
+  // Each event's detail page states its true audience in plain English (this is
+  // how the North Castle Chess Club was found mislabeled — typeMap said 'adult'
+  // but its description says "all ages welcome"). Fetch each *unique* program's
+  // detail page once (recurring events share a cal_item_id across occurrences)
+  // and widen the category if its description contradicts the type-ID guess.
+  const uniqueIds = [...new Set(events.map(e => e.calItemId).filter(Boolean))];
+  const descriptions = new Map();
+  for (const id of uniqueIds) {
+    const detailUrl = events.find(e => e.calItemId === id)?.url;
+    if (!detailUrl) continue;
+    const detailHtml = await fetchHtml(detailUrl);
+    if (detailHtml) {
+      const $d = cheerio.load(detailHtml);
+      let desc = '';
+      $d('.MHVILabel').each((_, el) => {
+        if ($d(el).text().trim() === 'Description') desc = $d(el).next('.MHVIData').text().trim();
+      });
+      descriptions.set(id, desc);
+    }
+    await sleep(200);
+  }
+  for (const e of events) {
+    if (e.calItemId) e.category = widenIfAllAges(e.category, descriptions.get(e.calItemId));
+    delete e.calItemId;
+  }
 
   return events;
 }
@@ -711,6 +756,7 @@ async function scrapeLibCalAjax(subdomain, calId, libraryKey) {
         if (/child|kid|family|baby|toddler|preschool|school.age|teen|tween|youth/.test(catStr)) category = 'kids';
         else if (/adult|senior|book.club|film/.test(catStr))                                    category = 'adult';
       }
+      category = widenIfAllAges(category, e.description, e.shortdesc);
 
       const timeStr = e.start && e.end ? `${e.start} – ${e.end}` : (e.start || '');
       const title   = (e.title || '').trim();
@@ -817,7 +863,8 @@ async function scrapeMamaroneck() {
             ? fmt12(e.start_date.slice(11, 16)) + (e.end_date ? ' – ' + fmt12(e.end_date.slice(11, 16)) : '')
             : '';
           const title = e.title.replace(/&amp;/g, '&').replace(/&#(\d+);/g, (_, c) => String.fromCharCode(c));
-          events.push({ date: eventDate, time: timeStr, title, url: e.url || '', library: 'mamaroneck', category });
+          const evCategory = widenIfAllAges(category, e.description, e.excerpt);
+          events.push({ date: eventDate, time: timeStr, title, url: e.url || '', library: 'mamaroneck', category: evCategory });
         }
         if (page >= (j.total_pages || 1)) break;
         page++;
@@ -859,7 +906,8 @@ async function scrapeLewisboro() {
             ? fmt12(e.start_date.slice(11, 16)) + (e.end_date ? ' – ' + fmt12(e.end_date.slice(11, 16)) : '')
             : '';
           const title = e.title.replace(/&amp;/g, '&').replace(/&#(\d+);/g, (_, c) => String.fromCharCode(c));
-          events.push({ date: eventDate, time: timeStr, title, url: e.url || '', library: 'lewisboro', category });
+          const evCategory = widenIfAllAges(category, e.description, e.excerpt);
+          events.push({ date: eventDate, time: timeStr, title, url: e.url || '', library: 'lewisboro', category: evCategory });
         }
         if (page >= (j.total_pages || 1)) break;
         page++;
@@ -900,6 +948,7 @@ async function scrapeBriarcliff() {
         let category = 'both';
         if (cats.some(c => /child|famil|kid|teen|tween|youth/.test(c))) category = 'kids';
         else if (cats.some(c => /adult|senior/.test(c))) category = 'adult';
+        category = widenIfAllAges(category, e.description, e.excerpt);
 
         const eventDate = new Date(e.start_date.slice(0, 10) + 'T00:00:00');
         if (isNaN(eventDate.getTime()) || eventDate < cutoff) continue;
@@ -972,6 +1021,7 @@ async function scrapeDobbsFerry() {
       let category = 'both';
       if (/child|kid|preschool|famil|baby|toddler|school.age|storytime|story.time|puppet|lego|chess|pok[eé]|youth|teen|tween/.test(t)) category = 'kids';
       else if (/adult|senior|book.club|book.group|genealog|citizenship|computer|quilting|mah.jongg|film|writ|poetry/.test(t)) category = 'adult';
+      category = widenIfAllAges(category, $(post).find('.event-text').first().text());
 
       events.push({ date: eventDate, time: timeStr, title, url: href, library: 'dobbs_ferry', category });
     });
@@ -1020,7 +1070,8 @@ async function scrapeWhitePlains() {
     const tags = Array.isArray(e.agesArray) ? e.agesArray : [];
     const isKids  = tags.some(t => KIDS_TAGS.test(t));
     const isAdult = tags.some(t => ADULT_TAGS.test(t));
-    const category = isKids && isAdult ? 'both' : isKids ? 'kids' : isAdult ? 'adult' : 'both';
+    let category = isKids && isAdult ? 'both' : isKids ? 'kids' : isAdult ? 'adult' : 'both';
+    category = widenIfAllAges(category, e.description, e.long_description);
 
     const isAllDay = /^12:00\s*AM$/i.test(e.start_time) && /^11:59\s*PM$/i.test(e.end_time);
     const timeStr = isAllDay ? 'All day' : (e.start_time && e.end_time ? `${e.start_time} – ${e.end_time}` : (e.start_time || ''));
@@ -1098,7 +1149,11 @@ async function scrapeArdsley() {
         if (!title || title.length < 4) return;
         if (/^click here/i.test(title)) return;
 
-        events.push({ date: eventDate, time: timeStr, title, url, library: 'ardsley', category });
+        // These 4 pages are each dedicated to one audience by design, but the
+        // surrounding paragraph occasionally says otherwise (e.g. an "all ages"
+        // program posted on the teen page too) — widen using the nearest block.
+        const evCategory = widenIfAllAges(category, $(el).text());
+        events.push({ date: eventDate, time: timeStr, title, url, library: 'ardsley', category: evCategory });
       });
     });
     await sleep(300);
@@ -1148,6 +1203,7 @@ async function scrapeHarrisonBranch(branchCategory, libraryKey) {
     let category = 'both';
     if (auds.some(a => /kid|child/.test(a)) && !auds.some(a => /adult/.test(a))) category = 'kids';
     else if (auds.some(a => /adult|young adult/.test(a)) && !auds.some(a => /kid|child/.test(a))) category = 'adult';
+    category = widenIfAllAges(category, e.extendedProps?.description);
 
     const startTime = e.start.slice(11, 16);
     const endTime   = e.end?.slice(11, 16);
@@ -1198,6 +1254,7 @@ async function scrapeFieldLibrary() {
         let category = 'both';
         if (cats.some(c => /child|famil|kid|teen|tween|youth/.test(c))) category = 'kids';
         else if (cats.some(c => /adult|senior/.test(c))) category = 'adult';
+        category = widenIfAllAges(category, e.description, e.excerpt);
 
         const eventDate = new Date(e.start_date.slice(0, 10) + 'T00:00:00');
         if (isNaN(eventDate.getTime()) || eventDate < cutoff) continue;
@@ -1360,7 +1417,10 @@ async function scrapeRuthKeeler() {
   const events = [];
   const now    = Date.now();
 
-  // Only adult calendar found; children's calname not public — tag all as 'both'
+  // Only adult calendar found; children's calname not public. Events default to
+  // 'adult' since that's what this calendar's own titles/content are (confirmed
+  // by audit), but widenIfAllAges below catches the occasional program (e.g.
+  // "Collaging") whose description explicitly says all ages are welcome.
   for (const calname of ['rkmladult']) {
     let j;
     try {
@@ -1392,7 +1452,8 @@ async function scrapeRuthKeeler() {
       };
       const timeStr   = endMs ? `${fmt(startMs)} – ${fmt(endMs)}` : fmt(startMs);
       const eventUrl  = `https://tockify.com/rkmladult/detail/${e.eid.uid}/${e.eid.tid}`;
-      events.push({ date: new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate()), time: timeStr, title, url: eventUrl, library: 'ruth_keeler', category: 'adult' });
+      const category  = widenIfAllAges('adult', e.content?.description?.text);
+      events.push({ date: new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate()), time: timeStr, title, url: eventUrl, library: 'ruth_keeler', category });
     }
     await sleep(300);
   }
@@ -1475,12 +1536,32 @@ async function scrapePortChester() {
 
   // Deduplicate (border events appear in adjacent monthly views)
   const seen = new Set();
-  return events.filter(e => {
+  const unique = events.filter(e => {
     const k = `${e.title}|${dateKey(e.date)}`;
     if (seen.has(k)) return false;
     seen.add(k);
     return true;
   });
+
+  // Titles have no audience info at all here, so keyword guessing is the only
+  // signal above — but each event's own detail page states the true audience
+  // in plain text. Fetch each *unique* event page once (recurring events share
+  // a URL across occurrences) and widen the category if it says otherwise.
+  const uniqueUrls = [...new Set(unique.map(e => e.url).filter(Boolean))];
+  const descriptions = new Map();
+  for (const url of uniqueUrls) {
+    const html = await fetchHtml(url);
+    if (html) {
+      const $ = cheerio.load(html);
+      descriptions.set(url, $('.upto-event-description-text').first().text());
+    }
+    await sleep(200);
+  }
+  for (const e of unique) {
+    e.category = widenIfAllAges(e.category, descriptions.get(e.url));
+  }
+
+  return unique;
 }
 
 
@@ -1567,6 +1648,7 @@ async function scrapeMountVernon() {
       else if (/adult|senior|citizenship|genealog|book.club|computer/i.test(title)) category = 'adult';
       else category = 'both';
     }
+    category = widenIfAllAges(category, desc);
 
     events.push({ date: eventDate, time: timeStr, title, url, library: 'mount_vernon', category });
   });
