@@ -157,7 +157,7 @@ function librarySlug(key) {
 // says "all ages welcome"). Where description text is available — often for
 // free, since we already fetched the page/response it lives in — check it and
 // widen the category rather than trusting the coarser tag alone.
-const ALL_AGES_RE = /\ball ages\b|\bopen to all\b|families welcome|everyone welcome|for all ages|kids and adults|children and adults/i;
+const ALL_AGES_RE = /\ball ages\b|\bopen to all\b|families welcome|everyone welcome|for all ages|kids and adults|children and adults|\beveryone\b|\beverybody\b|\banyone\b|\banybody\b|\bfamil(?:y|ies)\b/i;
 
 function widenIfAllAges(category, ...texts) {
   if (category === 'both') return category;
@@ -619,14 +619,17 @@ async function scrapeMhSoftware(calendarId, libraryKey, year, month, typeMap = {
     $td.find('a.MHVCItemLink').each((_, a) => {
       const $a     = $(a);
       const typeId = $a.attr('data-item_type_id') || '';
-      // Unknown type IDs default to 'both' rather than being dropped — this
-      // calendar adds new program categories occasionally (e.g. author talks,
-      // outdoor events) that aren't in typeMap yet, and silently excluding
-      // them hid real programs from the site (found via North Castle audit).
+      // Unknown type IDs default to 'adult' rather than being dropped or
+      // guessed as 'both' — this calendar adds new program categories
+      // occasionally (e.g. author talks, outdoor events) that aren't in
+      // typeMap yet, and silently excluding them hid real programs from the
+      // site (found via North Castle audit). But an unrecognized type ID is
+      // not evidence the program is for kids too — widenIfAllAges below still
+      // catches genuinely all-ages programs via their own description.
       let category;
       if (typeMap.kids.includes(typeId))        category = 'kids';
       else if (typeMap.adult.includes(typeId))  category = 'adult';
-      else                                       category = 'both';
+      else                                       category = 'adult';
 
       const title   = $a.text().trim();
       const timeStr = ($a.attr('title') || '').trim();
@@ -687,8 +690,9 @@ async function scrapeMhSoftware(calendarId, libraryKey, year, month, typeMap = {
 
 async function scrapeNorthCastle(year, month) {
   // item_type_id 18 (Library Chess Club) is explicitly "all ages welcome" on
-  // the library's own site, not adult-only — omitted here so it falls through
-  // to the 'both' default instead of being mislabeled 'adult'.
+  // the library's own site, not adult-only — omitted from typeMap here so it
+  // falls through to widenIfAllAges (via the event's own description) instead
+  // of being mislabeled 'adult'.
   return scrapeMhSoftware(2, 'north_castle', year, month, { kids: ['9', '22'], adult: ['7'] });
 }
 
@@ -745,13 +749,16 @@ async function scrapeLibCalAjax(subdomain, calId, libraryKey) {
 
       const audNames = (e.audiences || []).map(a => a.name.toLowerCase());
       const catStr   = (e.categories || '').toLowerCase();
-      let category   = 'both';
+      // No age signal at all defaults to 'adult', not 'both' — 'both' is
+      // reserved for an explicit dual-audience signal (or an "all ages"
+      // description, caught below), not just an absence of information.
+      let category = 'adult';
       if (audNames.length) {
         const hasKids  = audNames.some(a => /child|kid|family|baby|toddler|preschool|teen|tween|youth/.test(a));
         const hasAdult = audNames.some(a => /adult|senior/.test(a));
-        if (hasKids && !hasAdult)  category = 'kids';
-        else if (!hasKids && hasAdult) category = 'adult';
-        else category = 'both';
+        if (hasKids && hasAdult) category = 'both';
+        else if (hasKids)        category = 'kids';
+        else if (hasAdult)       category = 'adult';
       } else if (catStr) {
         if (/child|kid|family|baby|toddler|preschool|school.age|teen|tween|youth/.test(catStr)) category = 'kids';
         else if (/adult|senior|book.club|film/.test(catStr))                                    category = 'adult';
@@ -945,7 +952,7 @@ async function scrapeBriarcliff() {
       for (const e of j.events) {
         const cats = (e.categories || []).map(c => c.name.toLowerCase());
         if (cats.some(c => c.includes('board'))) continue;
-        let category = 'both';
+        let category = 'adult';
         if (cats.some(c => /child|famil|kid|teen|tween|youth/.test(c))) category = 'kids';
         else if (cats.some(c => /adult|senior/.test(c))) category = 'adult';
         category = widenIfAllAges(category, e.description, e.excerpt);
@@ -1018,7 +1025,7 @@ async function scrapeDobbsFerry() {
       if (/all.?day/i.test(timeStr)) timeStr = 'All day';
 
       const t = title.toLowerCase();
-      let category = 'both';
+      let category = 'adult';
       if (/child|kid|preschool|famil|baby|toddler|school.age|storytime|story.time|puppet|lego|chess|pok[eé]|youth|teen|tween/.test(t)) category = 'kids';
       else if (/adult|senior|book.club|book.group|genealog|citizenship|computer|quilting|mah.jongg|film|writ|poetry/.test(t)) category = 'adult';
       category = widenIfAllAges(category, $(post).find('.event-text').first().text());
@@ -1070,7 +1077,7 @@ async function scrapeWhitePlains() {
     const tags = Array.isArray(e.agesArray) ? e.agesArray : [];
     const isKids  = tags.some(t => KIDS_TAGS.test(t));
     const isAdult = tags.some(t => ADULT_TAGS.test(t));
-    let category = isKids && isAdult ? 'both' : isKids ? 'kids' : isAdult ? 'adult' : 'both';
+    let category = isKids && isAdult ? 'both' : isKids ? 'kids' : isAdult ? 'adult' : 'adult';
     category = widenIfAllAges(category, e.description, e.long_description);
 
     const isAllDay = /^12:00\s*AM$/i.test(e.start_time) && /^11:59\s*PM$/i.test(e.end_time);
@@ -1199,10 +1206,13 @@ async function scrapeHarrisonBranch(branchCategory, libraryKey) {
     const eventDate = new Date(e.start.slice(0, 10) + 'T00:00:00');
     if (isNaN(eventDate.getTime()) || eventDate < cutoff) continue;
 
-    const auds = (e.extendedProps?.audiences || []).map(a => a.name.toLowerCase());
-    let category = 'both';
-    if (auds.some(a => /kid|child/.test(a)) && !auds.some(a => /adult/.test(a))) category = 'kids';
-    else if (auds.some(a => /adult|young adult/.test(a)) && !auds.some(a => /kid|child/.test(a))) category = 'adult';
+    const auds     = (e.extendedProps?.audiences || []).map(a => a.name.toLowerCase());
+    const hasKids  = auds.some(a => /kid|child/.test(a));
+    const hasAdult = auds.some(a => /adult|young adult/.test(a));
+    let category = 'adult'; // no age signal at all defaults to adult, not both
+    if (hasKids && hasAdult) category = 'both';
+    else if (hasKids)        category = 'kids';
+    else if (hasAdult)       category = 'adult';
     category = widenIfAllAges(category, e.extendedProps?.description);
 
     const startTime = e.start.slice(11, 16);
@@ -1251,7 +1261,7 @@ async function scrapeFieldLibrary() {
 
       for (const e of j.events) {
         const cats = (e.categories || []).map(c => c.name.toLowerCase());
-        let category = 'both';
+        let category = 'adult';
         if (cats.some(c => /child|famil|kid|teen|tween|youth/.test(c))) category = 'kids';
         else if (cats.some(c => /adult|senior/.test(c))) category = 'adult';
         category = widenIfAllAges(category, e.description, e.excerpt);
@@ -1525,7 +1535,7 @@ async function scrapePortChester() {
 
       // Classify by title keywords — Upto.com has no audience field
       const t = title.toLowerCase();
-      let category = 'both';
+      let category = 'adult';
       if (/children|child|\bkids?\b|babies|baby|toddler|preschool|storytime|story\s+time|\blego\b|puppet|\bfamily\b|families|\byouth\b|school.age|elementary|teen|tween/.test(t)) category = 'kids';
       else if (/adult|senior|book\s*club|yoga|knitting|crochet|mahjong|mah.jong|film screen|lecture|mocktail|cocktail|\bwine\b|financial|medicare|insurance|\bcollege\b|career|\bjob\b|resume|genealog|esl|english as a|line danc/.test(t)) category = 'adult';
 
@@ -1641,12 +1651,11 @@ async function scrapeMountVernon() {
     if (seen.has(key)) return;
     seen.add(key);
 
-    // Use section-heading category if available, otherwise fall back to keywords then 'both'
+    // Use section-heading category if available, otherwise fall back to keywords then 'adult'
     let category = categoryMap.get(key);
     if (!category) {
       if (/child|kid|baby|toddler|preschool|storytime|story.time|puppet|teen|tween|youth/i.test(title)) category = 'kids';
-      else if (/adult|senior|citizenship|genealog|book.club|computer/i.test(title)) category = 'adult';
-      else category = 'both';
+      else category = 'adult';
     }
     category = widenIfAllAges(category, desc);
 
