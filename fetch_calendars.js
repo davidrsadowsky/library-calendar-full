@@ -995,16 +995,19 @@ async function scrapeDobbsFerry() {
   const cutoff = today();
   const events = [];
   const seen   = new Set();
-  const yr     = new Date().getFullYear();
 
-  function parseDFDate(raw) {
-    // ".la-date" text is like "Monday, June 1" — strip weekday prefix
+  function parseDFDate(raw, fetchYear, fetchMonth) {
+    // ".la-date" text is like "Monday, June 1" — strip weekday prefix.
+    // Pick the year that puts the date closest to the month page being fetched
+    // (never rolls a just-passed date a year into the future).
     const text = raw.replace(/^[A-Za-z]+,\s*/, '').replace(/\s+/g, ' ').trim();
-    for (const y of [yr, yr + 1]) {
+    const anchor = new Date(fetchYear, fetchMonth - 1, 15).getTime();
+    let best = null;
+    for (const y of [fetchYear - 1, fetchYear, fetchYear + 1]) {
       const d = parseDateStr(text + ', ' + y);
-      if (d && d >= cutoff) return d;
+      if (d && (best === null || Math.abs(d.getTime() - anchor) < Math.abs(best.getTime() - anchor))) best = d;
     }
-    return null;
+    return best && best >= cutoff ? best : null;
   }
 
   const now = new Date();
@@ -1025,7 +1028,7 @@ async function scrapeDobbsFerry() {
       if (!title || title.length < 3) return;
 
       const dateRaw   = $(post).find('.la-date').first().text().trim();
-      const eventDate = parseDFDate(dateRaw);
+      const eventDate = parseDFDate(dateRaw, y, mo);
       if (!eventDate) return;
 
       const key = `${title}|${dateKey(eventDate)}`;
@@ -1105,9 +1108,13 @@ function parseArdsleyDate(text) {
   const m = text.match(ARDSLEY_DATE_RE);
   if (!m) return null;
   const yr = new Date().getFullYear();
+  // These pages have no year on dates. Accept this year or next, but reject
+  // anything more than ~8 months out: a just-passed date would otherwise roll
+  // a full year forward and show a finished event as upcoming next year.
+  const maxAhead = new Date(today().getTime() + 240 * 86400000);
   for (const y of [yr, yr + 1]) {
     const d = parseDateStr(`${m[1]} ${parseInt(m[2])}, ${y}`);
-    if (d && d >= today()) return d;
+    if (d && d >= today() && d <= maxAhead) return d;
   }
   return null;
 }
@@ -1282,15 +1289,19 @@ async function scrapePelham() {
   const events  = [];
   const months  = getMonths(3);
 
-  function parsePelhamDate(day, abbr) {
+  function parsePelhamDate(day, abbr, fetchYear, fetchMonth) {
     const monthNum = ABBR_MONTH[abbr];
     if (!monthNum || !day) return null;
-    const yr = new Date().getFullYear();
-    for (const y of [yr, yr + 1]) {
+    // We know which month page we're fetching — pick the year that puts this
+    // date closest to it (handles Dec/Jan page borders without ever rolling a
+    // just-passed date a full year into the future).
+    const anchor = new Date(fetchYear, fetchMonth - 1, 15).getTime();
+    let best = null;
+    for (const y of [fetchYear - 1, fetchYear, fetchYear + 1]) {
       const d = new Date(y, monthNum - 1, parseInt(day));
-      if (d >= cutoff) return d;
+      if (best === null || Math.abs(d.getTime() - anchor) < Math.abs(best.getTime() - anchor)) best = d;
     }
-    return null;
+    return best >= cutoff ? best : null;
   }
 
   function slugToTitle(slug) {
@@ -1314,7 +1325,7 @@ async function scrapePelham() {
       const $el   = $(el);
       const day   = $el.find('.date .day').text().trim();
       const abbr  = $el.find('.date .month').text().trim();
-      const eventDate = parsePelhamDate(day, abbr);
+      const eventDate = parsePelhamDate(day, abbr, year, month);
       if (!eventDate) return;
 
       const href  = $el.find('a[href*="/programs/"], a[href*="/event/"], a.em-item-read-more').last().attr('href') || '';
@@ -1464,9 +1475,8 @@ async function scrapePortChester() {
   const cutoff = today();
   const events  = [];
   const months  = getMonths(3);
-  const yr      = new Date().getFullYear();
 
-  function parseUptoDuration(dur) {
+  function parseUptoDuration(dur, fetchYear, fetchMonth) {
     // "Mon, April 27th, 6:30pm - 7:30pm"  or  "Fri, May 1st, All Day"
     const m = dur.match(/,\s+([A-Za-z]+)\s+(\d{1,2})(?:st|nd|rd|th)?,\s*(.*)/);
     if (!m) return null;
@@ -1475,13 +1485,15 @@ async function scrapePortChester() {
     const day = parseInt(m[2]);
     const rest = m[3].trim();
 
-    // Determine year
+    // Pick the year that puts this date closest to the month view being fetched
+    // (never rolls a just-passed date a year forward).
+    const anchor = new Date(fetchYear, fetchMonth - 1, 15).getTime();
     let eventDate = null;
-    for (const y of [yr, yr + 1]) {
+    for (const y of [fetchYear - 1, fetchYear, fetchYear + 1]) {
       const d = new Date(y, monthNum - 1, day);
-      if (d >= cutoff) { eventDate = d; break; }
+      if (eventDate === null || Math.abs(d.getTime() - anchor) < Math.abs(eventDate.getTime() - anchor)) eventDate = d;
     }
-    if (!eventDate) return null;
+    if (eventDate < cutoff) return null;
 
     // Parse time range from remainder: "6:30pm - 7:30pm" or "All Day"
     const timeMatch = rest.match(/^(\d{1,2}:\d{2}(?:am|pm))\s*-\s*(\d{1,2}:\d{2}(?:am|pm))/i);
@@ -1499,7 +1511,7 @@ async function scrapePortChester() {
 
     $('li[data-duration]').each((_, li) => {
       const dur = $(li).attr('data-duration') || '';
-      const parsed = parseUptoDuration(dur);
+      const parsed = parseUptoDuration(dur, year, month);
       if (!parsed) return;
       const { eventDate, timeStr } = parsed;
 
@@ -1646,7 +1658,11 @@ function generateHtml(allEvents, mountKiscoMissing, preselect = null, pageMeta =
       eventMap.set(key, { ...e });
     }
   }
-  const unique = [...eventMap.values()];
+  // Cap the display window: we only scrape ~3 months ahead, so anything beyond
+  // that is either a scraper date bug or far-future recurring-series noise.
+  const t0 = today();
+  const displayCap = new Date(t0.getFullYear(), t0.getMonth() + 4, 1);
+  const unique = [...eventMap.values()].filter(e => e.date < displayCap);
 
   // Normalise all time strings before sorting
   for (const e of unique) e.time = normalizeTimeStr(e.time);
