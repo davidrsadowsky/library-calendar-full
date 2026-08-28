@@ -594,14 +594,19 @@ async function scrapeMhSoftware(calendarId, libraryKey, year, month, typeMap = {
     $td.find('a.MHVCItemLink').each((_, a) => {
       const $a     = $(a);
       const typeId = $a.attr('data-item_type_id') || '';
+      // Unknown type IDs default to 'both' rather than being dropped — this
+      // calendar adds new program categories occasionally (e.g. author talks,
+      // outdoor events) that aren't in typeMap yet, and silently excluding
+      // them hid real programs from the site (found via North Castle audit).
       let category;
       if (typeMap.kids.includes(typeId))        category = 'kids';
       else if (typeMap.adult.includes(typeId))  category = 'adult';
-      else return;
+      else                                       category = 'both';
 
       const title   = $a.text().trim();
       const timeStr = ($a.attr('title') || '').trim();
       if (!title) return;
+      if (/library (is |will be )?closed|board of trustees|staff meeting/i.test(title)) return;
 
       const href      = $a.attr('href') || '';
       const popMatch  = href.match(/popItem\((\d+),(\d+)\)/);
