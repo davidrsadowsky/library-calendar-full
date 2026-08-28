@@ -4,13 +4,11 @@
   "description": "Westchester library events calendar — web server",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "build": "npx playwright install --with-deps chromium"
+    "start": "node server.js"
   },
   "dependencies": {
     "cheerio": "^1.0.0",
     "express": "^4.18.0",
-    "node-cron": "^3.0.0",
-    "playwright": "^1.44.0"
+    "node-cron": "^3.0.0"
   }
 }

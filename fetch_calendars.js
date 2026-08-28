@@ -1,15 +1,12 @@
 'use strict';
 
 /**
- * Kids Library Calendar
- * Fetches children's event schedules from 6 Westchester County libraries
- * and generates calendar.html — open it in any browser.
+ * Westchester Library Events
+ * Fetches event schedules from Westchester County libraries and
+ * generates index.html — open it in any browser.
  *
  * Usage:
  *   node fetch_calendars.js
- *
- * To enable Mount Kisco (requires a one-time browser download):
- *   npm install playwright && npx playwright install chromium
  */
 
 const cheerio = require('cheerio');
@@ -644,95 +641,10 @@ async function scrapeNorthWhitePlains(year, month) {
 }
 
 
-// --- 4. Mount Kisco (CalendarWiz via Playwright)
+// --- 4. Mount Kisco (LibCal — their previous CalendarWiz account was deactivated)
 
-async function scrapeMountKisco(year, month) {
-  let playwright;
-  try {
-    playwright = require('playwright');
-  } catch (_) {
-    return { events: [], playwrightMissing: true };
-  }
-
-  const url =
-    `https://www.calendarwiz.com/calendars/calendar.php` +
-    `?crd=mountkiscopubliclibrary&op=cal&month=${month}&year=${year}`;
-  const events  = [];
-  const cutoff  = today();
-  const eventRe = /^\s*(\d{1,2}:\d{2}[ap]m)\s*-\s*(\d{1,2}:\d{2}[ap]m)\s+(.+)/i;
-
-  try {
-    const browser = await playwright.chromium.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
-    });
-    const page    = await browser.newPage();
-    await page.goto(url, { timeout: 30_000 });
-    await page.waitForTimeout(2_000);
-
-    // Build a map of category CSS classes → 'kids' or 'adult'
-    const catClasses = await page.evaluate(() => {
-      const select = document.querySelector('#catsellist');
-      const result = { kids: ['cat97858'], adult: ['cat97859', 'cat98089'] }; // fallbacks
-      if (!select) return result;
-      result.kids = []; result.adult = [];
-      for (const opt of select.options) {
-        const t = opt.text.toLowerCase();
-        if (/kids|family|child|teen|tween|baby|toddler|preschool|youth/.test(t)) result.kids.push(`cat${opt.value}`);
-        else if (t.includes('adult')) result.adult.push(`cat${opt.value}`);
-      }
-      return result;
-    });
-
-    const html = await page.content();
-    await browser.close();
-
-    const $ = cheerio.load(html);
-
-    function parseMkEvents($td, catClassList, category, eventDate) {
-      catClassList.forEach(cls => {
-        $td.find(`a.${cls}`).each((_, a) => {
-          const text  = $(a).text().trim();
-          const match = text.match(eventRe);
-          if (!match) return;
-
-          let title = match[3].replace(/\s*@\s*.+$/, '').trim();
-          if (!title) return;
-
-          const onclick  = $(a).attr('onclick') || '';
-          const idMatch  = onclick.match(/epopup\('(\d+)'\)/);
-          const eventUrl = idMatch
-            ? `https://www.calendarwiz.com/calendars/popup.php?op=view&id=${idMatch[1]}&crd=mountkiscopubliclibrary`
-            : '';
-
-          events.push({ date: eventDate, time: `${match[1]} – ${match[2]}`, title, url: eventUrl, library: 'mount_kisco', category });
-        });
-      });
-    }
-
-    // CalendarWiz day cells have id="day_YYYYMMDD"
-    $('td[id^="day_"]').each((_, td) => {
-      const $td     = $(td);
-      const dayId   = $td.attr('id') || '';
-      const dateStr = dayId.replace('day_', '');
-      if (dateStr.length !== 8) return;
-
-      const eventDate = new Date(
-        parseInt(dateStr.slice(0, 4)),
-        parseInt(dateStr.slice(4, 6)) - 1,
-        parseInt(dateStr.slice(6, 8))
-      );
-      if (isNaN(eventDate.getTime()) || eventDate < cutoff) return;
-
-      parseMkEvents($td, catClasses.kids, 'kids', eventDate);
-      parseMkEvents($td, catClasses.adult, 'adult', eventDate);
-    });
-
-  } catch (e) {
-    console.log(`    [error] Mount Kisco: ${e.message}`);
-  }
-
-  return { events, playwrightMissing: false };
+async function scrapeMountKisco() {
+  return scrapeLibCalAjax('mountkiscolibrary', 23004, 'mount_kisco');
 }
 
 
@@ -1653,7 +1565,7 @@ async function scrapeMountVernon() {
 // HTML generation
 // ---------------------------------------------------------------------------
 
-function generateHtml(allEvents, mountKiscoMissing, preselect = null, pageMeta = null) {
+function generateHtml(allEvents, preselect = null, pageMeta = null) {
   const meta = {
     title:         'Westchester Library Events',
     description:   'Upcoming events at Westchester County public libraries, updated daily. Filter by one or more libraries and by age group — kids, adults, or all — to create your own custom list of events.',
@@ -1724,12 +1636,6 @@ function generateHtml(allEvents, mountKiscoMissing, preselect = null, pageMeta =
       `<button class="badge filter-btn" data-lib="${key}" style="--c:${l.color}">${l.name}</button>`
     ).join('');
 
-  const warning = mountKiscoMissing
-    ? `<div class="warn"><strong>Mount Kisco not shown</strong> — Playwright is not installed.
-       To add it, open Terminal and run:<br>
-       <code>npm install playwright &amp;&amp; npx playwright install chromium</code></div>`
-    : '';
-
   const now   = new Date().toLocaleString('en-US', { weekday:'long', year:'numeric', month:'long', day:'numeric', hour:'numeric', minute:'2-digit', timeZone:'America/New_York' });
   const total = unique.length;
   const empty = '<p class="empty">No upcoming events found.</p>';
@@ -1770,21 +1676,6 @@ h1 { font-size: 1.55rem; font-weight: 800; letter-spacing: -.02em; margin-bottom
 .lib-subtitle.hidden { display: none; }
 .legend { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .legend.closed { display: none !important; }
-.warn {
-  margin-top: 12px;
-  background: #fff8e1;
-  border: 1px solid #ffe082;
-  border-radius: 8px;
-  padding: 10px 14px;
-  font-size: .83rem;
-  line-height: 1.5;
-}
-.warn code {
-  background: #f5f5f5;
-  border-radius: 4px;
-  padding: 1px 5px;
-  font-size: .82rem;
-}
 main {
   max-width: 740px;
   margin: 24px auto;
@@ -1986,7 +1877,6 @@ ${GA_MEASUREMENT_ID !== 'G-XXXXXXXXXX' ? `<script async src="https://www.googlet
     <button id="date-clear" class="ctrl-btn" style="display:none">✕ All dates</button>
   </div>
   <div class="legend" id="lib-legend">${legend}</div>
-  ${warning}
 </header>
 <main>
   ${unique.length ? daysHtml : empty}
@@ -2199,7 +2089,6 @@ a { color: #3a86ff; }
 async function main() {
   const months    = getMonths(3);
   const allEvents = [];
-  let   mountKiscoMissing = false;
   const cutoffToday = today();
 
   // Load event cache (persists across runs so sites that are temporarily down still show events)
@@ -2240,6 +2129,7 @@ async function main() {
     ['Yonkers Library (Riverfront)',         scrapeYonkersRiverfront],
     ['Yonkers Library (Will)',               scrapeYonkersWill],
     ['Yonkers Library (Crestwood)',          scrapeYonkersCrestwood],
+    ['Mount Kisco Public Library',           scrapeMountKisco],
   ];
   for (const [name, scraper] of lcScrapers) {
     console.log(`Fetching ${name}...`);
@@ -2264,25 +2154,6 @@ async function main() {
     const evs = applyCache(name, raw);
     allEvents.push(...evs);
     console.log(`  → ${evs.length} events`);
-  }
-
-  console.log('Fetching Mount Kisco Public Library (headless browser)...');
-  let mkRaw = [];
-  for (const [year, month] of months) {
-    const { events: mkEvs, playwrightMissing } = await scrapeMountKisco(year, month);
-    if (playwrightMissing) {
-      mountKiscoMissing = true;
-      console.log('  → Playwright not installed; Mount Kisco skipped');
-      console.log('     To enable: npm install playwright && npx playwright install chromium');
-      break;
-    }
-    mkRaw.push(...mkEvs);
-    await sleep(400);
-  }
-  if (!mountKiscoMissing) {
-    const mkEvs = applyCache('Mount Kisco Public Library', mkRaw);
-    allEvents.push(...mkEvs);
-    console.log(`  → ${mkEvs.length} events`);
   }
 
   for (const [name, scraper] of [
@@ -2317,11 +2188,11 @@ async function main() {
   console.log(`\nTotal events: ${allEvents.length}`);
 
   const outputPath = path.join(__dirname, 'index.html');
-  fs.writeFileSync(outputPath, generateHtml(allEvents, mountKiscoMissing), 'utf8');
+  fs.writeFileSync(outputPath, generateHtml(allEvents), 'utf8');
   console.log(`Calendar saved → ${outputPath}`);
 
   const lisaPath = path.join(__dirname, 'lisa.html');
-  fs.writeFileSync(lisaPath, generateHtml(allEvents, false, ['bedford_free', 'bedford_hills', 'katonah', 'pound_ridge', 'mount_kisco', 'chappaqua', 'mount_pleasant']), 'utf8');
+  fs.writeFileSync(lisaPath, generateHtml(allEvents, ['bedford_free', 'bedford_hills', 'katonah', 'pound_ridge', 'mount_kisco', 'chappaqua', 'mount_pleasant']), 'utf8');
   console.log(`Lisa page saved → ${lisaPath}`);
 
   const privacyPath = path.join(__dirname, 'privacy.html');
@@ -2338,7 +2209,7 @@ async function main() {
         ownKey:        key,
       };
       const libPath = path.join(__dirname, `${slug}.html`);
-      fs.writeFileSync(libPath, generateHtml(allEvents, mountKiscoMissing, [key], pageMeta), 'utf8');
+      fs.writeFileSync(libPath, generateHtml(allEvents, [key], pageMeta), 'utf8');
     }
     console.log(`Generated ${Object.keys(LIBRARIES).length} per-library SEO pages`);
   }
