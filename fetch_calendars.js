@@ -49,7 +49,7 @@ const LIBRARIES = {
   mount_vernon:           { name: 'Mount Vernon Public Library',             color: '#0096c7' },
   new_rochelle_main:      { name: 'New Rochelle Library (Main)',             color: '#2b9348' },
   new_rochelle_huguenot:  { name: 'New Rochelle Library (Huguenot)',        color: '#80b918' },
-  north_white_plains:     { name: 'North Castle Library (White Plains)',     color: '#4cc9f0' },
+  north_white_plains:     { name: 'North Castle Library (North White Plains)', color: '#4cc9f0' },
   ossining:               { name: 'Ossining Public Library',                 color: '#9d4edd' },
   pelham:                 { name: 'Town of Pelham Public Library',           color: '#ffbe0b' },
   port_chester:           { name: 'Port Chester-Rye Brook Library',          color: '#52b788' },
@@ -645,7 +645,7 @@ async function scrapeNorthCastle(year, month) {
 }
 
 async function scrapeNorthWhitePlains(year, month) {
-  // White Plains branch uses different item_type_ids than Armonk
+  // North White Plains branch uses different item_type_ids than Armonk
   // 13=Children, 15=Adult, 21/22/25=General programs (adult)
   return scrapeMhSoftware(5, 'north_white_plains', year, month, { kids: ['13'], adult: ['15', '21', '22', '25'] });
 }
@@ -2220,7 +2220,7 @@ async function main() {
   const monthScrapers = [
     ['Bedford Free Library',             scrapeBedfordFree],
     ['North Castle Library (Armonk)',    scrapeNorthCastle],
-    ['North Castle Library (White Plains)', scrapeNorthWhitePlains],
+    ['North Castle Library (North White Plains)', scrapeNorthWhitePlains],
   ];
   for (const [name, scraper] of monthScrapers) {
     console.log(`Fetching ${name}...`);
