@@ -641,7 +641,10 @@ async function scrapeMhSoftware(calendarId, libraryKey, year, month, typeMap = {
 }
 
 async function scrapeNorthCastle(year, month) {
-  return scrapeMhSoftware(2, 'north_castle', year, month);
+  // item_type_id 18 (Library Chess Club) is explicitly "all ages welcome" on
+  // the library's own site, not adult-only — omitted here so it falls through
+  // to the 'both' default instead of being mislabeled 'adult'.
+  return scrapeMhSoftware(2, 'north_castle', year, month, { kids: ['9', '22'], adult: ['7'] });
 }
 
 async function scrapeNorthWhitePlains(year, month) {
