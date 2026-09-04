@@ -1102,32 +1102,165 @@ async function scrapeWhitePlains() {
 
 
 // --- 8. Ardsley (Weebly — separate pages per audience)
-// Site redesign (found via silent-library alert, Aug 2026) replaced the old
-// "one <strong> per occurrence" markup with two block styles, both with no
-// year on the date:
-//   (a) recurring block: title in <u>, then a trailing list of dates like
+// Site redesign (found via silent-library alert, then user review, Aug 2026)
+// uses freeform prose with at least 4 distinct date/time patterns across the
+// 4 pages, with no consistent structural markup:
+//   (a) explicit spelled-date list, title in <u>: "Lego Lab" + trailing
 //       "Tuesday, September 1 at 11 AM<br>Tuesday, October 6 at 4 PM..."
-//   (b) single-date block (often in an <h2>): date first, title in the next
-//       <em>, e.g. "Saturday, September 19th at 10:30 AM" then
-//       <em>Mid-Autumn Festival Craft with Julia Liu!</em>
+//   (b) single spelled date, title in <em>, often in an <h2>: "Saturday,
+//       September 19th at 10:30 AM" then <em>Mid-Autumn Festival...</em>
+//   (c) weekly-recurring series described in plain-text prose: "Bouncing
+//       Babies" + "Mondays at 10:45 am" + "September 14-December 14" +
+//       "(No class Oct. 12 or Nov. 23)" — one <div> can bundle multiple such
+//       programs back to back (e.g. "Two's Company Storytime" and "Preschool
+//       Storytime" sharing one block), so this generates one weekly
+//       occurrence per week in range, minus exceptions, per program found.
+//   (d) numeric date, abbreviated weekday, title in <em>: "Tues, 9/15, 11am"
 
-const ARDSLEY_DATETIME_RE = /(?:[A-Za-z]+,\s*)?([A-Za-z]+)\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+at\s+(\d{1,2}(?::\d{2})?)\s*([ap]m)/gi;
-const ARDSLEY_DATETIME_TEST_RE = /(?:[A-Za-z]+,\s*)?([A-Za-z]+)\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+at\s+(\d{1,2}(?::\d{2})?)\s*([ap]m)/i;
+const ARDSLEY_MONTHS = {
+  jan:0, january:0, feb:1, february:1, mar:2, march:2, apr:3, april:3, may:4,
+  jun:5, june:5, jul:6, july:6, aug:7, august:7, sep:8, sept:8, september:8,
+  oct:9, october:9, nov:10, november:10, dec:11, december:11,
+};
+const ARDSLEY_MONTH_ALT = '(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t|tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)';
+function ardsleyMonthNum(name) { return ARDSLEY_MONTHS[name.toLowerCase().replace(/\.$/, '')]; }
+function ardsleyClean(s) { return s.replace(/​| /g, ' ').replace(/\s+/g, ' ').trim(); }
 
-function parseArdsleyDate(month, day) {
-  const yr = new Date().getFullYear();
-  // These pages have no year on dates. Accept this year or next, but reject
-  // anything more than ~8 months out: a just-passed date would otherwise roll
-  // a full year forward and show a finished event as upcoming next year.
-  const maxAhead = new Date(today().getTime() + 240 * 86400000);
-  for (const y of [yr, yr + 1]) {
-    const d = parseDateStr(`${month} ${parseInt(day)}, ${y}`);
-    if (d && d >= today() && d <= maxAhead) return d;
+const ARDSLEY_DATE_TOKEN_RE = new RegExp(`\\b(${ARDSLEY_MONTH_ALT})\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?\\b`, 'gi');
+const ARDSLEY_DATE_TOKEN_TEST_RE = new RegExp(`\\b(${ARDSLEY_MONTH_ALT})\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?\\b`, 'i');
+const ARDSLEY_NUM_DATE_RE = /\b(\d{1,2})\/(\d{1,2})\b/g;
+const ARDSLEY_NUM_DATE_TEST_RE = /\b(\d{1,2})\/(\d{1,2})\b/;
+const ARDSLEY_TIME_RE = /(\d{1,2})(?::(\d{2}))?\s*([ap]m)/i;
+const ARDSLEY_WEEKDAY_RE = /\b(Select\s+)?(Mondays?|Tuesdays?|Wednesdays?|Thursdays?|Fridays?|Saturdays?|Sundays?)\b/i;
+const ARDSLEY_FOR_AGES_RE = /\bfor ages?\b/i;
+const ARDSLEY_RANGE_RE_GLOBAL = new RegExp(`\\b(${ARDSLEY_MONTH_ALT})\\.?\\s+(\\d{1,2})\\s*[-–]\\s*(?:(${ARDSLEY_MONTH_ALT})\\.?\\s+)?(\\d{1,2})\\b`, 'gi');
+
+function ardsleyFmtTime(h, m, ap) { return `${h}${m ? ':'+m : ''}${ap.toLowerCase()}`; }
+
+// Title from an arbitrary text span: cut at the first age/weekday/date/time
+// marker, then keep only text after the last sentence boundary (drops a
+// leftover previous-program description sentence when spans get merged).
+function ardsleyTitleFromSpan(text) {
+  text = ardsleyClean(text);
+  const cuts = [];
+  for (const re of [ARDSLEY_WEEKDAY_RE, ARDSLEY_DATE_TOKEN_TEST_RE, ARDSLEY_NUM_DATE_TEST_RE, ARDSLEY_TIME_RE, ARDSLEY_FOR_AGES_RE]) {
+    const m = text.match(re);
+    if (m) cuts.push(m.index);
   }
-  return null;
+  let candidate = cuts.length ? text.slice(0, Math.min(...cuts)) : text;
+  const lastPunct = Math.max(candidate.lastIndexOf('.'), candidate.lastIndexOf('!'), candidate.lastIndexOf('?'));
+  if (lastPunct >= 0) candidate = candidate.slice(lastPunct + 1);
+  candidate = candidate.trim();
+  return candidate.length >= 4 && candidate.length < 80 ? candidate : '';
+}
+
+// Weekly-recurring series: finds every "weekday ... Month D-Month D" cluster
+// in the block (a block can bundle several programs), generating one
+// occurrence per week in range minus any "(No class ...)" exceptions.
+function ardsleyParseWeeklyRecurring(text, cutoff, maxAhead) {
+  const results = [];
+  const rangeMatches = [...text.matchAll(ARDSLEY_RANGE_RE_GLOBAL)];
+  if (!rangeMatches.length) return results;
+
+  let cursor = 0;
+  for (const rm of rangeMatches) {
+    const startMonth = ardsleyMonthNum(rm[1]);
+    const endMonth = rm[3] ? ardsleyMonthNum(rm[3]) : startMonth;
+    if (startMonth == null || endMonth == null) continue;
+
+    const precedingText = text.slice(cursor, rm.index);
+    const wd = precedingText.match(ARDSLEY_WEEKDAY_RE);
+    const t = precedingText.match(ARDSLEY_TIME_RE);
+    const afterRange = text.slice(rm.index, rm.index + 150);
+    const exMatch = afterRange.match(/no class([^)]*)\)/i);
+    // Always advance the cursor even if this cluster doesn't qualify, so a
+    // later cluster's preceding-text search doesn't re-scan past it.
+    const nextCursor = exMatch ? rm.index + exMatch.index + exMatch[0].length : rm.index + rm[0].length;
+    if (!wd || wd[1] || !t) { cursor = nextCursor; continue; }
+
+    const startDay = parseInt(rm[2]);
+    const endDay = parseInt(rm[4]);
+    const yr = new Date().getFullYear();
+    const start = new Date(yr, startMonth, startDay);
+    const end = new Date(yr, endMonth, endDay);
+
+    const exceptions = new Set();
+    if (exMatch) {
+      for (const dm of exMatch[1].matchAll(ARDSLEY_DATE_TOKEN_RE)) {
+        const mn = ardsleyMonthNum(dm[1]);
+        if (mn != null) exceptions.add(`${mn}-${parseInt(dm[2])}`);
+      }
+    }
+
+    const events = [];
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 7)) {
+      if (d < cutoff || d > maxAhead) continue;
+      const key = `${d.getMonth()}-${d.getDate()}`;
+      if (exceptions.has(key)) continue;
+      events.push({ date: new Date(d), time: ardsleyFmtTime(t[1], t[2], t[3]) });
+    }
+
+    const titleSpan = precedingText.slice(0, wd.index);
+    const title = ardsleyTitleFromSpan(titleSpan);
+    if (events.length && title) results.push({ title, events });
+
+    cursor = nextCursor;
+  }
+  return results;
+}
+
+// Explicit dates: a spelled-month list ("Lego Lab") or numeric M/D list
+// ("Tues, 9/15, 11am"), all sharing one title for the whole block.
+function ardsleyParseExplicitList(text, cutoff, maxAhead) {
+  const events = [];
+  const timeMatch = text.match(ARDSLEY_TIME_RE);
+  const yr = new Date().getFullYear();
+
+  const spelledMatches = [...text.matchAll(ARDSLEY_DATE_TOKEN_RE)];
+  if (spelledMatches.length) {
+    for (const m of spelledMatches) {
+      const mn = ardsleyMonthNum(m[1]);
+      if (mn == null) continue;
+      let t = timeMatch;
+      const after = text.slice(m.index, m.index + 30).match(ARDSLEY_TIME_RE);
+      if (after) t = after;
+      if (!t) continue;
+      const d = new Date(yr, mn, parseInt(m[2]));
+      if (d < cutoff || d > maxAhead) continue;
+      events.push({ date: d, time: ardsleyFmtTime(t[1], t[2], t[3]) });
+    }
+    if (events.length) return events;
+  }
+
+  const numMatches = [...text.matchAll(ARDSLEY_NUM_DATE_RE)];
+  if (numMatches.length && timeMatch) {
+    for (const m of numMatches) {
+      const d = new Date(yr, parseInt(m[1]) - 1, parseInt(m[2]));
+      if (d < cutoff || d > maxAhead) continue;
+      events.push({ date: d, time: ardsleyFmtTime(timeMatch[1], timeMatch[2], timeMatch[3]) });
+    }
+  }
+  return events;
+}
+
+function ardsleyExtractTitleDom($, $el, text) {
+  let title = ardsleyClean($el.find('u').first().text());
+  if (title && title.length >= 4) return title;
+  let found = '';
+  $el.find('em').each((__, em) => {
+    if (found) return;
+    const t = ardsleyClean($(em).text());
+    if (t && t.length >= 4 && !ARDSLEY_TIME_RE.test(t) && !ARDSLEY_NUM_DATE_TEST_RE.test(t)) found = t;
+  });
+  if (found) return found;
+  const afterColon = text.match(/\d{1,2}(?::\d{2})?\s*[ap]m\s*:\s*([^.]+)/i);
+  if (afterColon) return afterColon[1].trim();
+  return ardsleyTitleFromSpan(text);
 }
 
 async function scrapeArdsley() {
+  const cutoff = today();
+  const maxAhead = new Date(cutoff.getTime() + 240 * 86400000);
   const pages = [
     ['https://www.ardsleypubliclibrary.org/adults.html',          'adult'],
     ['https://www.ardsleypubliclibrary.org/teen-scene.html',      'kids'],
@@ -1143,41 +1276,33 @@ async function scrapeArdsley() {
     $('nav, header, footer, script, style').remove();
 
     $('div.paragraph, p, h2.wsite-content-title').each((_, el) => {
-      const $el  = $(el);
-      const text = $el.text().replace(/​| /g, ' ').replace(/\s+/g, ' ').trim();
+      const $el = $(el);
+      const $clone = $el.clone();
+      $clone.find('br').replaceWith(' ');
+      const text = ardsleyClean($clone.text());
       if (!text) return;
 
-      const dateMatches = [...text.matchAll(ARDSLEY_DATETIME_RE)];
-      if (!dateMatches.length) return;
-
-      // Title: prefer <u> text (recurring-block style), else the first <em>
-      // that isn't itself a date match (single-date-block style), else
-      // whatever follows a "TIME:" colon (old style, still seen on some blocks).
-      let title = $el.find('u').first().text().replace(/​| /g, ' ').replace(/\s+/g, ' ').trim();
-      if (!title || title.length < 4) {
-        $el.find('em').each((__, em) => {
-          if (title && title.length >= 4) return;
-          const t = $(em).text().replace(/​| /g, ' ').replace(/\s+/g, ' ').trim();
-          if (t && t.length >= 4 && !ARDSLEY_DATETIME_TEST_RE.test(t)) title = t;
-        });
+      // Category is fixed by which of Ardsley's 4 dedicated pages this came
+      // from — the site already sorts events by audience, so no need to
+      // second-guess it from description text the way ambiguous-source
+      // libraries need (widenIfAllAges intentionally not used here).
+      const recurring = ardsleyParseWeeklyRecurring(text, cutoff, maxAhead);
+      if (recurring.length) {
+        for (const r of recurring) {
+          if (/^click here/i.test(r.title)) continue;
+          for (const de of r.events) {
+            events.push({ date: de.date, time: de.time, title: r.title, url, library: 'ardsley', category });
+          }
+        }
+        return;
       }
-      if (!title || title.length < 4) {
-        const afterColon = text.match(/\d{1,2}(?::\d{2})?\s*[ap]m\s*:\s*([^.]+)/i);
-        if (afterColon) title = afterColon[1].trim();
-      }
-      if (!title || title.length < 4) return;
-      if (/^click here/i.test(title)) return;
 
-      // These 4 pages are each dedicated to one audience by design, but the
-      // surrounding paragraph occasionally says otherwise (e.g. an "all ages"
-      // program posted on the teen page too) — widen using the nearest block.
-      const evCategory = widenIfAllAges(category, text);
-
-      for (const m of dateMatches) {
-        const eventDate = parseArdsleyDate(m[1], m[2]);
-        if (!eventDate) continue;
-        const timeStr = `${m[3]}${m[4].toLowerCase()}`;
-        events.push({ date: eventDate, time: timeStr, title, url, library: 'ardsley', category: evCategory });
+      const dateEvents = ardsleyParseExplicitList(text, cutoff, maxAhead);
+      if (!dateEvents.length) return;
+      const title = ardsleyExtractTitleDom($, $el, text);
+      if (!title || title.length < 4 || /^click here/i.test(title)) return;
+      for (const de of dateEvents) {
+        events.push({ date: de.date, time: de.time, title, url, library: 'ardsley', category });
       }
     });
     await sleep(300);
