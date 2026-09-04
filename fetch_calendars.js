@@ -244,13 +244,19 @@ function parseLcCalendar(html, libraryKey, options = {}) {
   // Shared parser for the Drupal library_calendar module (list/upcoming view).
   // Date lives in aria-label: '... on Friday, April 25, 2026 @ 10:00am'
   // options.branchFilter: if set, skip events whose branch text doesn't include this string
-  const events = [];
-  if (!html) return events;
+  const events   = [];
+  const rawDates = []; // every card's date, unfiltered by branch — used by the
+                        // caller to decide whether to keep paginating, since a
+                        // branch filter can legitimately zero out a whole page
+                        // while a later page still has events for our branch
+                        // (e.g. a branch's events start on page 2, not page 0)
+  if (!html) return { events, rawCount: 0, rawDates };
 
   const $      = cheerio.load(html);
   const cutoff = today();
+  const cards  = $('article.event-card, article.lc-event');
 
-  $('article.event-card, article.lc-event').each((_, el) => {
+  cards.each((_, el) => {
     const $el  = $(el);
     const link = $el.find('a[aria-label]').first();
     if (!link.length) return;
@@ -261,10 +267,11 @@ function parseLcCalendar(html, libraryKey, options = {}) {
 
     const eventDate = parseDateStr(dateMatch[1]);
     if (!eventDate || eventDate < cutoff) return;
+    rawDates.push(eventDate);
 
     // Branch filter: skip events not at the requested branch (e.g. Pleasantville only)
     if (options.branchFilter) {
-      const branchText = $el.find('.lc-event__branch').text();
+      const branchText = $el.find('.lc-event__branch, .lc-list-event-location').text();
       if (!branchText.includes(options.branchFilter)) return;
     }
 
@@ -313,7 +320,7 @@ function parseLcCalendar(html, libraryKey, options = {}) {
     events.push({ date: eventDate, time: timeStr, title, url: href, library: libraryKey, category });
   });
 
-  return events;
+  return { events, rawCount: cards.length, rawDates };
 }
 
 // Fetch the list/upcoming view, paginating up to maxPages pages.
@@ -328,11 +335,15 @@ async function scrapeLcListView(baseUrl, libraryKey, options = {}, maxPages = 3)
     const html = await fetchHtml(url);
     if (!html) break;
 
-    const batch = parseLcCalendar(html, libraryKey, options);
+    const { events: batch, rawCount, rawDates } = parseLcCalendar(html, libraryKey, options);
     allEvents.push(...batch);
 
-    if (batch.length === 0) break;
-    if (batch.every(e => e.date >= cutoffDate)) break;
+    // Stop conditions are based on the page's raw (unfiltered) events, not the
+    // branch-filtered batch — a branch filter can legitimately zero out a
+    // whole page while a later page still has that branch's events (found via
+    // Yonkers Crestwood alert: its events start on page 2 of a shared feed).
+    if (rawCount === 0) break;
+    if (rawDates.length > 0 && rawDates.every(d => d >= cutoffDate)) break;
     await sleep(400);
   }
 
@@ -371,8 +382,8 @@ async function scrapeMountPleasant() {
   const base = 'https://mountpleasant.librarycalendar.com/events/list';
   // tid-2=Children (Main), tid-4=Adults (Main); branchFilter keeps only Pleasantville
   const [kids, adults] = await Promise.all([
-    scrapeLcListView(base + '?age_groups[2]=2', 'mount_pleasant', { category: 'kids', branchFilter: 'Main Library' }),
-    scrapeLcListView(base + '?age_groups[4]=4', 'mount_pleasant', { category: 'adult', branchFilter: 'Main Library' }),
+    scrapeLcListView(base + '?age_groups[2]=2', 'mount_pleasant', { category: 'kids', branchFilter: 'Main Library' }, 8),
+    scrapeLcListView(base + '?age_groups[4]=4', 'mount_pleasant', { category: 'adult', branchFilter: 'Main Library' }, 8),
   ]);
   return [...kids, ...adults];
 }
@@ -403,8 +414,8 @@ async function scrapeLarchmont() {
 async function scrapeMountPleasantValhalla() {
   const base = 'https://mountpleasant.librarycalendar.com/events/list';
   const [kids, adults] = await Promise.all([
-    scrapeLcListView(base + '?age_groups[84]=84', 'mount_pleasant_valhalla', { category: 'kids', branchFilter: 'Branch Library' }),
-    scrapeLcListView(base + '?age_groups[157]=157', 'mount_pleasant_valhalla', { category: 'adult', branchFilter: 'Branch Library' }),
+    scrapeLcListView(base + '?age_groups[84]=84', 'mount_pleasant_valhalla', { category: 'kids', branchFilter: 'Branch Library' }, 8),
+    scrapeLcListView(base + '?age_groups[157]=157', 'mount_pleasant_valhalla', { category: 'adult', branchFilter: 'Branch Library' }, 8),
   ]);
   return [...kids, ...adults];
 }
@@ -475,8 +486,8 @@ async function scrapeScarsdale() {
 async function scrapeNewRochelleMain() {
   const base = 'https://newrochelle.librarycalendar.com/events/list';
   const [kids, adults] = await Promise.all([
-    scrapeLcListView(base + '?age_groups[37]=37&age_groups[38]=38&age_groups[177]=177', 'new_rochelle_main', { category: 'kids', branchFilter: 'Main Library' }),
-    scrapeLcListView(base + '?age_groups[39]=39&age_groups[40]=40&age_groups[41]=41', 'new_rochelle_main', { category: 'adult', branchFilter: 'Main Library' }),
+    scrapeLcListView(base + '?age_groups[37]=37&age_groups[38]=38&age_groups[177]=177', 'new_rochelle_main', { category: 'kids', branchFilter: 'Main Library' }, 8),
+    scrapeLcListView(base + '?age_groups[39]=39&age_groups[40]=40&age_groups[41]=41', 'new_rochelle_main', { category: 'adult', branchFilter: 'Main Library' }, 8),
   ]);
   return [...kids, ...adults];
 }
@@ -484,8 +495,8 @@ async function scrapeNewRochelleMain() {
 async function scrapeNewRochelleHuguenot() {
   const base = 'https://newrochelle.librarycalendar.com/events/list';
   const [kids, adults] = await Promise.all([
-    scrapeLcListView(base + '?age_groups[37]=37&age_groups[38]=38&age_groups[177]=177', 'new_rochelle_huguenot', { category: 'kids', branchFilter: 'Huguenot' }),
-    scrapeLcListView(base + '?age_groups[39]=39&age_groups[40]=40&age_groups[41]=41', 'new_rochelle_huguenot', { category: 'adult', branchFilter: 'Huguenot' }),
+    scrapeLcListView(base + '?age_groups[37]=37&age_groups[38]=38&age_groups[177]=177', 'new_rochelle_huguenot', { category: 'kids', branchFilter: 'Huguenot' }, 8),
+    scrapeLcListView(base + '?age_groups[39]=39&age_groups[40]=40&age_groups[41]=41', 'new_rochelle_huguenot', { category: 'adult', branchFilter: 'Huguenot' }, 8),
   ]);
   return [...kids, ...adults];
 }
@@ -493,8 +504,8 @@ async function scrapeNewRochelleHuguenot() {
 async function scrapeYonkersRiverfront() {
   const base = 'https://www.ypl.org/events/list';
   const [kids, adults] = await Promise.all([
-    scrapeLcListView(base + '?age_groups[178]=178&age_groups[179]=179', 'yonkers_riverfront', { category: 'kids', branchFilter: 'Riverfront' }),
-    scrapeLcListView(base + '?age_groups[4]=4&age_groups[5]=5&age_groups[183]=183&age_groups[6]=6', 'yonkers_riverfront', { category: 'adult', branchFilter: 'Riverfront' }),
+    scrapeLcListView(base + '?age_groups[178]=178&age_groups[179]=179', 'yonkers_riverfront', { category: 'kids', branchFilter: 'Riverfront' }, 8),
+    scrapeLcListView(base + '?age_groups[4]=4&age_groups[5]=5&age_groups[183]=183&age_groups[6]=6', 'yonkers_riverfront', { category: 'adult', branchFilter: 'Riverfront' }, 8),
   ]);
   return [...kids, ...adults];
 }
@@ -502,8 +513,8 @@ async function scrapeYonkersRiverfront() {
 async function scrapeYonkersWill() {
   const base = 'https://www.ypl.org/events/list';
   const [kids, adults] = await Promise.all([
-    scrapeLcListView(base + '?age_groups[178]=178&age_groups[179]=179', 'yonkers_will', { category: 'kids', branchFilter: 'Will Library' }),
-    scrapeLcListView(base + '?age_groups[4]=4&age_groups[5]=5&age_groups[183]=183&age_groups[6]=6', 'yonkers_will', { category: 'adult', branchFilter: 'Will Library' }),
+    scrapeLcListView(base + '?age_groups[178]=178&age_groups[179]=179', 'yonkers_will', { category: 'kids', branchFilter: 'Will Library' }, 8),
+    scrapeLcListView(base + '?age_groups[4]=4&age_groups[5]=5&age_groups[183]=183&age_groups[6]=6', 'yonkers_will', { category: 'adult', branchFilter: 'Will Library' }, 8),
   ]);
   return [...kids, ...adults];
 }
@@ -511,8 +522,8 @@ async function scrapeYonkersWill() {
 async function scrapeYonkersCrestwood() {
   const base = 'https://www.ypl.org/events/list';
   const [kids, adults] = await Promise.all([
-    scrapeLcListView(base + '?age_groups[178]=178&age_groups[179]=179', 'yonkers_crestwood', { category: 'kids', branchFilter: 'Crestwood' }),
-    scrapeLcListView(base + '?age_groups[4]=4&age_groups[5]=5&age_groups[183]=183&age_groups[6]=6', 'yonkers_crestwood', { category: 'adult', branchFilter: 'Crestwood' }),
+    scrapeLcListView(base + '?age_groups[178]=178&age_groups[179]=179', 'yonkers_crestwood', { category: 'kids', branchFilter: 'Crestwood' }, 8),
+    scrapeLcListView(base + '?age_groups[4]=4&age_groups[5]=5&age_groups[183]=183&age_groups[6]=6', 'yonkers_crestwood', { category: 'adult', branchFilter: 'Crestwood' }, 8),
   ]);
   return [...kids, ...adults];
 }
@@ -1091,26 +1102,26 @@ async function scrapeWhitePlains() {
 
 
 // --- 8. Ardsley (Weebly — separate pages per audience)
-// Dates appear in <strong> tags as: "Month DDth at H:MM AM: Event Title" (no year)
+// Site redesign (found via silent-library alert, Aug 2026) replaced the old
+// "one <strong> per occurrence" markup with two block styles, both with no
+// year on the date:
+//   (a) recurring block: title in <u>, then a trailing list of dates like
+//       "Tuesday, September 1 at 11 AM<br>Tuesday, October 6 at 4 PM..."
+//   (b) single-date block (often in an <h2>): date first, title in the next
+//       <em>, e.g. "Saturday, September 19th at 10:30 AM" then
+//       <em>Mid-Autumn Festival Craft with Julia Liu!</em>
 
-// Two patterns in <strong> tags (no year, ordinal days):
-//   Pattern 1: "Month DDth at H:MM AM: Event Title" — all in one strong
-//   Pattern 2: "Month DDth at H:MM AM" in strong 1, title in next strong sibling
-// Date ranges like "March 23 through May 11" have no "at H:MM" → skipped.
+const ARDSLEY_DATETIME_RE = /(?:[A-Za-z]+,\s*)?([A-Za-z]+)\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+at\s+(\d{1,2}(?::\d{2})?)\s*([ap]m)/gi;
+const ARDSLEY_DATETIME_TEST_RE = /(?:[A-Za-z]+,\s*)?([A-Za-z]+)\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+at\s+(\d{1,2}(?::\d{2})?)\s*([ap]m)/i;
 
-const ARDSLEY_DATE_RE = /\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2})(?:st|nd|rd|th)?\b/i;
-const ARDSLEY_AT_TIME_RE = /\bat\s+(\d{1,2}(?::\d{2})?\s*[ap]m)\s*:?\s*/i;
-
-function parseArdsleyDate(text) {
-  const m = text.match(ARDSLEY_DATE_RE);
-  if (!m) return null;
+function parseArdsleyDate(month, day) {
   const yr = new Date().getFullYear();
   // These pages have no year on dates. Accept this year or next, but reject
   // anything more than ~8 months out: a just-passed date would otherwise roll
   // a full year forward and show a finished event as upcoming next year.
   const maxAhead = new Date(today().getTime() + 240 * 86400000);
   for (const y of [yr, yr + 1]) {
-    const d = parseDateStr(`${m[1]} ${parseInt(m[2])}, ${y}`);
+    const d = parseDateStr(`${month} ${parseInt(day)}, ${y}`);
     if (d && d >= today() && d <= maxAhead) return d;
   }
   return null;
@@ -1131,37 +1142,43 @@ async function scrapeArdsley() {
     const $ = cheerio.load(html);
     $('nav, header, footer, script, style').remove();
 
-    $('div.paragraph, p').each((_, el) => {
-      $(el).find('strong, b').each((__, strong) => {
-        const text = $(strong).text().replace(/\u200b|\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
-        if (!text || text.length < 5) return;
+    $('div.paragraph, p, h2.wsite-content-title').each((_, el) => {
+      const $el  = $(el);
+      const text = $el.text().replace(/​| /g, ' ').replace(/\s+/g, ' ').trim();
+      if (!text) return;
 
-        // Must have date AND time pattern — skips date-range notes like 'March 23 through May 11'
-        const eventDate = parseArdsleyDate(text);
-        if (!eventDate) return;
-        const timeMatch = text.match(ARDSLEY_AT_TIME_RE);
-        if (!timeMatch) return;
-        const timeStr = timeMatch[1].trim();
+      const dateMatches = [...text.matchAll(ARDSLEY_DATETIME_RE)];
+      if (!dateMatches.length) return;
 
-        // Pattern 1: 'at H:MM AM: Title' all in one strong
-        const afterTimeColon = text.match(/\bat\s+\d{1,2}(?::\d{2})?\s*[ap]m\s*:\s*(.+)/i);
-        let title = afterTimeColon ? afterTimeColon[1].trim() : '';
+      // Title: prefer <u> text (recurring-block style), else the first <em>
+      // that isn't itself a date match (single-date-block style), else
+      // whatever follows a "TIME:" colon (old style, still seen on some blocks).
+      let title = $el.find('u').first().text().replace(/​| /g, ' ').replace(/\s+/g, ' ').trim();
+      if (!title || title.length < 4) {
+        $el.find('em').each((__, em) => {
+          if (title && title.length >= 4) return;
+          const t = $(em).text().replace(/​| /g, ' ').replace(/\s+/g, ' ').trim();
+          if (t && t.length >= 4 && !ARDSLEY_DATETIME_TEST_RE.test(t)) title = t;
+        });
+      }
+      if (!title || title.length < 4) {
+        const afterColon = text.match(/\d{1,2}(?::\d{2})?\s*[ap]m\s*:\s*([^.]+)/i);
+        if (afterColon) title = afterColon[1].trim();
+      }
+      if (!title || title.length < 4) return;
+      if (/^click here/i.test(title)) return;
 
-        // Pattern 2: no colon after time — title is in the next strong sibling
-        if (!title || title.length < 4) {
-          const nextStrong = $(strong).nextAll('strong, b').first();
-          title = nextStrong.text().replace(/\u200b|\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
-        }
+      // These 4 pages are each dedicated to one audience by design, but the
+      // surrounding paragraph occasionally says otherwise (e.g. an "all ages"
+      // program posted on the teen page too) — widen using the nearest block.
+      const evCategory = widenIfAllAges(category, text);
 
-        if (!title || title.length < 4) return;
-        if (/^click here/i.test(title)) return;
-
-        // These 4 pages are each dedicated to one audience by design, but the
-        // surrounding paragraph occasionally says otherwise (e.g. an "all ages"
-        // program posted on the teen page too) — widen using the nearest block.
-        const evCategory = widenIfAllAges(category, $(el).text());
+      for (const m of dateMatches) {
+        const eventDate = parseArdsleyDate(m[1], m[2]);
+        if (!eventDate) continue;
+        const timeStr = `${m[3]}${m[4].toLowerCase()}`;
         events.push({ date: eventDate, time: timeStr, title, url, library: 'ardsley', category: evCategory });
-      });
+      }
     });
     await sleep(300);
   }
