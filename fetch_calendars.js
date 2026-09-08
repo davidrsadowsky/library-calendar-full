@@ -1133,7 +1133,7 @@ const ARDSLEY_NUM_DATE_TEST_RE = /\b(\d{1,2})\/(\d{1,2})\b/;
 const ARDSLEY_TIME_RE = /(\d{1,2})(?::(\d{2}))?\s*([ap]m)/i;
 const ARDSLEY_WEEKDAY_RE = /\b(Select\s+)?(Mondays?|Tuesdays?|Wednesdays?|Thursdays?|Fridays?|Saturdays?|Sundays?)\b/i;
 const ARDSLEY_FOR_AGES_RE = /\bfor ages?\b/i;
-const ARDSLEY_RANGE_RE_GLOBAL = new RegExp(`\\b(${ARDSLEY_MONTH_ALT})\\.?\\s+(\\d{1,2})\\s*[-–]\\s*(?:(${ARDSLEY_MONTH_ALT})\\.?\\s+)?(\\d{1,2})\\b`, 'gi');
+const ARDSLEY_RANGE_RE_GLOBAL = new RegExp(`\\b(${ARDSLEY_MONTH_ALT})\\.?\\s+(\\d{1,2})\\s*(?:[-–]|to)\\s*(?:(${ARDSLEY_MONTH_ALT})\\.?\\s+)?(\\d{1,2})\\b`, 'gi');
 
 function ardsleyFmtTime(h, m, ap) { return `${h}${m ? ':'+m : ''}${ap.toLowerCase()}`; }
 
@@ -1172,7 +1172,12 @@ function ardsleyParseWeeklyRecurring(text, cutoff, maxAhead) {
     const wd = precedingText.match(ARDSLEY_WEEKDAY_RE);
     const t = precedingText.match(ARDSLEY_TIME_RE);
     const afterRange = text.slice(rm.index, rm.index + 150);
-    const exMatch = afterRange.match(/no class([^)]*)\)/i);
+    // Prefer a proper parenthetical capture first — it tolerates periods inside
+    // (e.g. "Oct. 12") that would otherwise truncate the match early. Only
+    // fall back to stopping at a sentence period when there's no closing paren
+    // at all (e.g. "Library closed October 7." with no parentheses).
+    const exMatch = afterRange.match(/(?:no class|library closed|cancell?ed|no program)([^)]*)\)/i)
+      || afterRange.match(/(?:no class|library closed|cancell?ed|no program)([^.]*)\./i);
     // Always advance the cursor even if this cluster doesn't qualify, so a
     // later cluster's preceding-text search doesn't re-scan past it.
     const nextCursor = exMatch ? rm.index + exMatch.index + exMatch[0].length : rm.index + rm[0].length;
