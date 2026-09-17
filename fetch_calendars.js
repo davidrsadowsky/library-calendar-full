@@ -208,6 +208,46 @@ async function fetchHtml(url, timeoutMs = 20_000) {
   }
 }
 
+// Some sites (e.g. Field Library) sit behind Sucuri's Cloudproxy WAF, which
+// serves a 307 plus a tiny obfuscated JS "challenge" before allowing real
+// requests through. The script just deterministically builds one fixed
+// cookie value (no per-request timestamp/nonce, confirmed by inspection) —
+// safe and lightweight to solve with Node's built-in vm module rather than
+// needing a real/headless browser. Found & fixed via the silent-library
+// alert (Sept 2026, 14 days silent — the whole site was behind it, not just
+// our endpoint).
+function solveSucuriChallenge(html) {
+  const scriptMatch = html.match(/<script>([\s\S]*)<\/script>/);
+  if (!scriptMatch) return null;
+  const vm = require('vm');
+  let capturedCookie = null;
+  const sandbox = {
+    document: { set cookie(v) { capturedCookie = v; }, get cookie() { return ''; } },
+    location: { reload: () => {} },
+    String,
+  };
+  try {
+    vm.createContext(sandbox);
+    vm.runInContext(scriptMatch[1], sandbox, { timeout: 2000 });
+  } catch (_) { return null; }
+  return capturedCookie ? capturedCookie.split(';')[0] : null;
+}
+
+// Wraps fetch() to transparently solve a Sucuri challenge (a 307 with the
+// script above) and retry once with the resulting cookie. Returns a normal
+// Response either way, so callers can .json()/.text() it as usual.
+async function fetchWithSucuriBypass(url, options = {}) {
+  let res = await fetch(url, options);
+  if (res.status === 307) {
+    const challengeHtml = await res.text();
+    const cookie = solveSucuriChallenge(challengeHtml);
+    if (cookie) {
+      res = await fetch(url, { ...options, headers: { ...(options.headers || {}), Cookie: cookie } });
+    }
+  }
+  return res;
+}
+
 function sleep(ms) {
   return new Promise(r => setTimeout(r, ms));
 }
@@ -1404,7 +1444,7 @@ async function scrapeFieldLibrary() {
     let page = 1;
     while (true) {
       const url = `https://www.thefieldlibrary.org/wp-json/tribe/events/v1/events?per_page=50&start_date=${todayStr}&page=${page}`;
-      const r   = await fetch(url, { headers: FETCH_HEADERS, signal: AbortSignal.timeout(20_000) });
+      const r   = await fetchWithSucuriBypass(url, { headers: FETCH_HEADERS, signal: AbortSignal.timeout(20_000) });
       if (!r.ok) break;
       const j = await r.json();
       if (!j.events?.length) break;
