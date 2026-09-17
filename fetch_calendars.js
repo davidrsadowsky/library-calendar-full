@@ -567,10 +567,13 @@ async function fetchBedfordFreePage(urlPath, year, month, category) {
 }
 
 async function scrapeBedfordFree(year, month) {
-  const [kids, adults] = await Promise.all([
-    fetchBedfordFreePage('/children/programs/', year, month, 'kids'),
-    fetchBedfordFreePage('/adults/programs/', year, month, 'adult'),
-  ]);
+  // Sequential, not Promise.all — their site's bot-protection blocks with a
+  // 403 the instant it sees two truly-concurrent connections from the same
+  // client, even though rapid *sequential* requests are completely fine
+  // (confirmed via direct testing, Sept 2026 alert investigation).
+  const kids = await fetchBedfordFreePage('/children/programs/', year, month, 'kids');
+  await sleep(500);
+  const adults = await fetchBedfordFreePage('/adults/programs/', year, month, 'adult');
   return [...kids, ...adults];
 }
 
