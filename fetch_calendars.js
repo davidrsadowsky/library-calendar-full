@@ -200,7 +200,17 @@ function formatDate(d) {
 async function fetchHtml(url, timeoutMs = 20_000) {
   try {
     const res = await fetch(url, { headers: FETCH_HEADERS, signal: AbortSignal.timeout(timeoutMs) });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!res.ok) {
+      // Diagnostic dump for blocked requests — some sites' bot-protection
+      // identifies itself via headers/body (like Field Library's Sucuri
+      // challenge did), which a bare "HTTP 403" doesn't surface.
+      const headerDump = [...res.headers.entries()]
+        .filter(([k]) => /server|via|cf-|x-|denied|block|waf|cache/i.test(k))
+        .map(([k, v]) => `${k}: ${v}`).join(' | ');
+      const bodySnippet = (await res.text().catch(() => '')).slice(0, 300).replace(/\s+/g, ' ');
+      console.log(`    [warn] ${url}\n           HTTP ${res.status}\n           headers: ${headerDump}\n           body: ${bodySnippet}`);
+      return null;
+    }
     return await res.text();
   } catch (e) {
     console.log(`    [warn] ${url}\n           ${e.message}`);
