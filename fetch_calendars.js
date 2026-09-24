@@ -197,6 +197,27 @@ function formatDate(d) {
 // HTTP helper
 // ---------------------------------------------------------------------------
 
+// got-scraping (ESM-only) reconstructs browser-like TLS/HTTP fingerprints
+// that plain fetch()/curl lack. Some sites (e.g. Bedford Free Library) run
+// bot-protection that flat-403s any request whose TLS handshake doesn't look
+// like a real browser, regardless of headers or cookies — a plain fetch()
+// can't fix that no matter what headers it sends, so this is only tried as a
+// fallback when the normal fetch is blocked, keeping the common case cheap.
+let _gotScrapingPromise = null;
+async function fetchWithBrowserFingerprint(url, timeoutMs) {
+  try {
+    if (!_gotScrapingPromise) _gotScrapingPromise = import('got-scraping');
+    const { gotScraping } = await _gotScrapingPromise;
+    const res = await gotScraping({ url, timeout: { request: timeoutMs }, throwHttpErrors: false });
+    if (res.statusCode >= 200 && res.statusCode < 300) return res.body;
+    console.log(`    [warn] got-scraping fallback also failed: ${url}\n           HTTP ${res.statusCode}`);
+    return null;
+  } catch (e) {
+    console.log(`    [warn] got-scraping fallback errored: ${url}\n           ${e.message}`);
+    return null;
+  }
+}
+
 async function fetchHtml(url, timeoutMs = 20_000) {
   try {
     const res = await fetch(url, { headers: FETCH_HEADERS, signal: AbortSignal.timeout(timeoutMs) });
@@ -209,12 +230,12 @@ async function fetchHtml(url, timeoutMs = 20_000) {
         .map(([k, v]) => `${k}: ${v}`).join(' | ');
       const bodySnippet = (await res.text().catch(() => '')).slice(0, 300).replace(/\s+/g, ' ');
       console.log(`    [warn] ${url}\n           HTTP ${res.status}\n           headers: ${headerDump}\n           body: ${bodySnippet}`);
-      return null;
+      return await fetchWithBrowserFingerprint(url, timeoutMs);
     }
     return await res.text();
   } catch (e) {
     console.log(`    [warn] ${url}\n           ${e.message}`);
-    return null;
+    return await fetchWithBrowserFingerprint(url, timeoutMs);
   }
 }
 
