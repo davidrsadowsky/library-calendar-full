@@ -218,6 +218,38 @@ async function fetchWithBrowserFingerprint(url, timeoutMs) {
   }
 }
 
+// Last-resort relay through a Cloudflare Worker (see cloudflare-proxy-worker.js).
+// Some blocks (e.g. New Rochelle's "inaccessible due to geographical
+// restrictions") are tied to whichever random Azure IP GitHub Actions draws
+// that night — a browser-fingerprint fix like got-scraping can't help with
+// that since it doesn't change where the request is coming from. Cloudflare's
+// network uses different IPs, so relaying through it sidesteps a geo-block.
+// Only reached once both earlier fetch attempts have already failed, and only
+// configured at all if the GitHub secrets below are set.
+async function fetchViaCloudflareWorker(url, timeoutMs) {
+  const workerUrl = process.env.CF_PROXY_WORKER_URL;
+  const token = process.env.CF_PROXY_TOKEN;
+  if (!workerUrl || !token) return null;
+  try {
+    const proxied = `${workerUrl}?token=${encodeURIComponent(token)}&url=${encodeURIComponent(url)}`;
+    const res = await fetch(proxied, { signal: AbortSignal.timeout(timeoutMs) });
+    if (!res.ok) {
+      console.log(`    [warn] Cloudflare Worker fallback also failed: ${url}\n           HTTP ${res.status}`);
+      return null;
+    }
+    return await res.text();
+  } catch (e) {
+    console.log(`    [warn] Cloudflare Worker fallback errored: ${url}\n           ${e.message}`);
+    return null;
+  }
+}
+
+async function fetchWithFallbacks(url, timeoutMs) {
+  const viaFingerprint = await fetchWithBrowserFingerprint(url, timeoutMs);
+  if (viaFingerprint !== null) return viaFingerprint;
+  return await fetchViaCloudflareWorker(url, timeoutMs);
+}
+
 async function fetchHtml(url, timeoutMs = 20_000) {
   try {
     const res = await fetch(url, { headers: FETCH_HEADERS, signal: AbortSignal.timeout(timeoutMs) });
@@ -230,12 +262,12 @@ async function fetchHtml(url, timeoutMs = 20_000) {
         .map(([k, v]) => `${k}: ${v}`).join(' | ');
       const bodySnippet = (await res.text().catch(() => '')).slice(0, 300).replace(/\s+/g, ' ');
       console.log(`    [warn] ${url}\n           HTTP ${res.status}\n           headers: ${headerDump}\n           body: ${bodySnippet}`);
-      return await fetchWithBrowserFingerprint(url, timeoutMs);
+      return await fetchWithFallbacks(url, timeoutMs);
     }
     return await res.text();
   } catch (e) {
     console.log(`    [warn] ${url}\n           ${e.message}`);
-    return await fetchWithBrowserFingerprint(url, timeoutMs);
+    return await fetchWithFallbacks(url, timeoutMs);
   }
 }
 

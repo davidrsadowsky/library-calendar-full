@@ -38,6 +38,8 @@ jobs:
         env:
           BREVO_SMTP_USER: ${{ secrets.BREVO_SMTP_USER }}
           BREVO_SMTP_PASS: ${{ secrets.BREVO_SMTP_PASS }}
+          CF_PROXY_WORKER_URL: ${{ secrets.CF_PROXY_WORKER_URL }}
+          CF_PROXY_TOKEN: ${{ secrets.CF_PROXY_TOKEN }}
         run: node fetch_calendars.js
 
       - name: Commit cache file
