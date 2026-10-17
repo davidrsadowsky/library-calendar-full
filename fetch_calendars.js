@@ -90,6 +90,17 @@ const FETCH_HEADERS = {
     'Chrome/124.0.0.0 Safari/537.36',
 };
 
+// Pelham's site 403s any Chrome/Chromium-pattern User-Agent specifically
+// (confirmed Oct 2026: Firefox, Safari-only, curl's default, and no custom
+// UA at all all pass fine — only the "...Chrome/X Safari/X" shape is
+// blocked, likely an overly blunt anti-scraping rule since that's the most
+// commonly spoofed UA). Use this instead of FETCH_HEADERS for Pelham only.
+const FIREFOX_HEADERS = {
+  'User-Agent':
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:109.0) ' +
+    'Gecko/20100101 Firefox/131.0',
+};
+
 // ---------------------------------------------------------------------------
 // Date helpers
 // ---------------------------------------------------------------------------
@@ -250,9 +261,9 @@ async function fetchWithFallbacks(url, timeoutMs) {
   return await fetchViaCloudflareWorker(url, timeoutMs);
 }
 
-async function fetchHtml(url, timeoutMs = 20_000) {
+async function fetchHtml(url, timeoutMs = 20_000, headers = FETCH_HEADERS) {
   try {
-    const res = await fetch(url, { headers: FETCH_HEADERS, signal: AbortSignal.timeout(timeoutMs) });
+    const res = await fetch(url, { headers, signal: AbortSignal.timeout(timeoutMs) });
     if (!res.ok) {
       // Diagnostic dump for blocked requests — some sites' bot-protection
       // identifies itself via headers/body (like Field Library's Sucuri
@@ -1576,7 +1587,7 @@ async function scrapePelham() {
   const seen = new Set();
   for (const [year, month] of months) {
     const url = `https://www.pelhamlibrary.org/calendar/?mo=${month}&yr=${year}`;
-    const html = await fetchHtml(url);
+    const html = await fetchHtml(url, 20_000, FIREFOX_HEADERS);
     if (!html) continue;
     const $ = cheerio.load(html);
 
